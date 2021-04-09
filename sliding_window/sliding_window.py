@@ -1,6 +1,7 @@
 import pandas as pd
 import numpy as np
 from pathlib import Path
+import matplotlib.pyplot as plt
 
 
 class SlidingWindow:
@@ -11,8 +12,7 @@ class SlidingWindow:
         self.num_fasta_files = 0
 
     # create new FASTA file for edited protein sequence data
-    def write_processed_fasta(self, lines, file_idx):
-        new_file = open(f'data/processed/processed_data_{file_idx}.fa', "w")
+    def process_fasta(self, lines, new_file):
         for line in lines:
             if line[0] != '>':
                 if line[0] != '\n':
@@ -22,9 +22,8 @@ class SlidingWindow:
                 if line != lines[0]:
                     new_file.write('\n')
         new_file.write('\n')
-        new_file.close()
 
-    def process_fasta(self):
+    def write_processed_fasta(self):
         with self.directory_path as entries:
             for file_idx, infile in enumerate(entries.iterdir()):
                 if infile.is_file():
@@ -33,17 +32,21 @@ class SlidingWindow:
                 content = open(f'{self.directory_path}/{infile.name}', "r")
                 lines = content.readlines()
                 content.close()
-                self.write_processed_fasta(lines, file_idx)
+                new_file = open(
+                    f'data/processed/processed_data_{file_idx}.fa', "w")
+                self.process_fasta(lines, new_file)
+                new_file.close()
 
     def calc_freqs_in_windows(self, sequences):
+        sequences = np.asarray(sequences)
         seq_window_freqs = np.full(len(sequences), None)
         for seq_idx, seq in enumerate(sequences):
             # convert sequence to a series of booleans indicating presence of specified amino acid
             s = pd.Series(np.where(np.array(list(seq))
-                          == self.amino_acid, 1, 0))
+                                   == self.amino_acid, 1, 0))
             # calculate frequencies of each window in the sequence
             sum_in_windows = s.rolling(self.window_size).sum()
-            # remove NAs and reset index to 0
+            # remove NAs produced by window contraction and reset index to 0
             sum_in_windows = sum_in_windows.dropna().reset_index(drop=True)
             # calculate frequencies
             freqs_in_windows = sum_in_windows / self.window_size
@@ -75,3 +78,14 @@ class SlidingWindow:
 
     def window_variances(self, taxa_dict):
         return pd.DataFrame({name: df.var(axis=1) for (name, df) in taxa_dict.items()})
+
+    def plot_freqs(self, window_freq_means):
+        plt.rcParams['figure.figsize'] = [15, 5]
+        cols = [window_freq_means[col] for col in window_freq_means]
+        plt.stackplot(window_freq_means.index, *cols,
+                      labels=window_freq_means.columns)
+        plt.title(f"Amino acid: {self.amino_acid}")
+        plt.xlabel(f"Window position (window size = {self.window_size})")
+        plt.ylabel('Stacked mean window frequency')
+        plt.legend([col_name.capitalize() for col_name in window_freq_means])
+        plt.show()
