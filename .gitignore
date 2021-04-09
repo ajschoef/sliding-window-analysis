@@ -130,3 +130,13 @@ dmypy.json
 
 # Get rid of .DS_Store
 .DS_Store/
+
+.vscode
+
+# original sliding window notebook for benchmarking purposes
+cluster_locator_original.ipynb
+cluster_locator.ipynb
+
+# data files
+data/
+
