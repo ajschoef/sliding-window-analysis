@@ -42,14 +42,12 @@ class SlidingWindow:
         seq_window_freqs = np.full(len(sequences), None)
         for seq_idx, seq in enumerate(sequences):
             # convert sequence to a series of booleans indicating presence of specified amino acid
-            s = pd.Series(np.where(np.array(list(seq))
-                                   == self.amino_acid, 1, 0))
+            s = np.where(np.array(list(seq)) == self.amino_acid, 1, 0)
             # calculate frequencies of each window in the sequence
-            sum_in_windows = s.rolling(self.window_size).sum()
-            # remove NAs produced by window contraction and reset index to 0
-            sum_in_windows = sum_in_windows.dropna().reset_index(drop=True)
+            window_sums = np.convolve(s, np.ones(
+                self.window_size, dtype=int), 'valid')
             # calculate frequencies
-            freqs_in_windows = sum_in_windows / self.window_size
+            freqs_in_windows = window_sums / self.window_size
             seq_window_freqs[seq_idx] = freqs_in_windows
         return seq_window_freqs
 
