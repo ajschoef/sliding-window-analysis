@@ -32,12 +32,10 @@ class SlidingWindow:
                 input_filename = f'{self.directory_path}/{infile.name}'
                 with open(input_filename, "r") as f:
                     lines = f.readlines()
-                    f.close()
                 # write processed FASTA file
                 output_filename = f'data/processed/processed_data_{file_idx}.fa'
                 with open(output_filename, "w") as f:
                     self.process_fasta(lines, f)
-                    f.close()
 
     def calc_freqs_in_windows(self, sequences):
         # convert sequence strings to 2d array
@@ -54,13 +52,12 @@ class SlidingWindow:
         return windows_freqs
 
     def calculate_taxa_freqs(self):
+        taxa_window_freqs = np.full((self.num_fasta_files), None)
         with Path('data/processed') as entries:
-            taxa_window_freqs = np.full((self.num_fasta_files), None)
             for file_idx, taxa_file in enumerate(entries.iterdir()):
                 # read in processed fasta file(s)
-                new_file = open(taxa_file, "r")
-                sequences = new_file.readlines()
-                new_file.close()
+                with open(taxa_file, "r") as f:
+                    sequences = f.readlines()
                 # calculate the frequencies in each window of each sequence
                 freqs_in_windows = self.calc_freqs_in_windows(sequences)
                 taxa_window_freqs[file_idx] = freqs_in_windows
