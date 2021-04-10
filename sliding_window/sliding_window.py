@@ -51,7 +51,6 @@ class SlidingWindow:
         window_sums = np.asarray(window_sums)
         # calculate frequencies
         windows_freqs = window_sums / self.window_size
-        # seq_window_freqs[seq_idx] = windows_freqs
         return windows_freqs
 
     def calculate_taxa_freqs(self):
