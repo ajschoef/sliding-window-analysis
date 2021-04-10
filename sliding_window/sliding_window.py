@@ -2,9 +2,11 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
+from scipy.signal import convolve2d
 
 
 class SlidingWindow:
+
     def __init__(self, directory_path, amino_acid, window_size):
         self.directory_path = Path(directory_path)
         self.amino_acid = amino_acid
@@ -38,18 +40,19 @@ class SlidingWindow:
                 new_file.close()
 
     def calc_freqs_in_windows(self, sequences):
-        sequences = np.asarray(sequences)
-        seq_window_freqs = np.full(len(sequences), None)
-        for seq_idx, seq in enumerate(sequences):
-            # convert sequence to a series of booleans indicating presence of specified amino acid
-            s = np.where(np.array(list(seq)) == self.amino_acid, 1, 0)
-            # calculate frequencies of each window in the sequence
-            window_sums = np.convolve(s, np.ones(
-                self.window_size, dtype=int), 'valid')
-            # calculate frequencies
-            freqs_in_windows = window_sums / self.window_size
-            seq_window_freqs[seq_idx] = freqs_in_windows
-        return seq_window_freqs
+        # convert sequence strings to 2d array
+        sequences = np.asarray(list(map(list, sequences)))
+        # convert sequence arrays to boolean values indicating amino acid presence
+        is_amino = np.where(sequences == self.amino_acid, 1, 0)
+        # convolution weights
+        weights = np.ones(self.window_size, dtype=int)
+        # calculate sum of boolean values for each window in each sequence
+        window_sums = [np.convolve(a, weights, mode='valid') for a in is_amino]
+        window_sums = np.asarray(window_sums)
+        # calculate frequencies
+        windows_freqs = window_sums / self.window_size
+        # seq_window_freqs[seq_idx] = windows_freqs
+        return windows_freqs
 
     def calculate_taxa_freqs(self):
         with Path('data/processed') as entries:
