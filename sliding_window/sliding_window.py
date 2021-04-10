@@ -1,8 +1,6 @@
-import pandas as pd
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-from scipy.signal import convolve2d
 
 
 class SlidingWindow:
@@ -31,13 +29,15 @@ class SlidingWindow:
                 if infile.is_file():
                     self.num_fasta_files += 1
                 # read in raw FASTA file
-                content = open(f'{self.directory_path}/{infile.name}', "r")
-                lines = content.readlines()
-                content.close()
-                new_file = open(
-                    f'data/processed/processed_data_{file_idx}.fa', "w")
-                self.process_fasta(lines, new_file)
-                new_file.close()
+                input_filename = f'{self.directory_path}/{infile.name}'
+                with open(input_filename, "r") as f:
+                    lines = f.readlines()
+                    f.close()
+                # write processed FASTA file
+                output_filename = f'data/processed/processed_data_{file_idx}.fa'
+                with open(output_filename, "w") as f:
+                    self.process_fasta(lines, f)
+                    f.close()
 
     def calc_freqs_in_windows(self, sequences):
         # convert sequence strings to 2d array
@@ -55,7 +55,7 @@ class SlidingWindow:
 
     def calculate_taxa_freqs(self):
         with Path('data/processed') as entries:
-            taxa_window_freqs = np.full(self.num_fasta_files, None)
+            taxa_window_freqs = np.full((self.num_fasta_files), None)
             for file_idx, taxa_file in enumerate(entries.iterdir()):
                 # read in processed fasta file(s)
                 new_file = open(taxa_file, "r")
@@ -66,26 +66,17 @@ class SlidingWindow:
                 taxa_window_freqs[file_idx] = freqs_in_windows
         return taxa_window_freqs
 
-    def create_df_from_freqs(self, taxa_freqs):
-        return pd.DataFrame.from_dict(
-            {f"seq_{i}": freq for i, freq in enumerate(taxa_freqs, 1)})
+    def window_means(self, taxa_window_freqs):
+        return np.asarray([taxa.mean(axis=0) for taxa in taxa_window_freqs])
 
-    def create_taxa_dict(self, names, taxa_window_freqs):
-        return {name: self.create_df_from_freqs(taxa_freqs) for name, taxa_freqs in zip(names, taxa_window_freqs)}
+    def window_var(self, taxa_window_freqs):
+        return np.asarray([taxa.var(axis=0) for taxa in taxa_window_freqs])
 
-    def window_means(self, taxa_dict):
-        return pd.DataFrame({name: df.mean(axis=1) for (name, df) in taxa_dict.items()})
-
-    def window_variances(self, taxa_dict):
-        return pd.DataFrame({name: df.var(axis=1) for (name, df) in taxa_dict.items()})
-
-    def plot_freqs(self, window_freq_means):
+    def plot_freqs(self, names, freq_means):
         plt.rcParams['figure.figsize'] = [15, 5]
-        cols = [window_freq_means[col] for col in window_freq_means]
-        plt.stackplot(window_freq_means.index, *cols,
-                      labels=window_freq_means.columns)
+        plt.stackplot(range(freq_means[0].size), *freq_means)
         plt.title(f"Amino acid: {self.amino_acid}")
         plt.xlabel(f"Window position (window size = {self.window_size})")
         plt.ylabel('Stacked mean window frequency')
-        plt.legend([col_name.capitalize() for col_name in window_freq_means])
+        plt.legend(names)
         plt.show()
