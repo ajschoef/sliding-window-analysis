@@ -1,5 +1,4 @@
 from sliding_window import sliding_window
-import matplotlib.pyplot as plt
 
 
 def main():
