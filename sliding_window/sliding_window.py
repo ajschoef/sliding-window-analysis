@@ -5,9 +5,9 @@ import matplotlib.pyplot as plt
 
 class SlidingWindow:
 
-    def __init__(self, directory_path, amino_acid, window_size):
+    def __init__(self, directory_path, codon, window_size):
         self.directory_path = Path(directory_path)
-        self.amino_acid = amino_acid
+        self.codon = codon
         self.window_size = window_size
         self.num_fasta_files = 0
 
@@ -37,21 +37,31 @@ class SlidingWindow:
                 with open(output_filename, "w") as f:
                     self.process_fasta(lines, f)
 
-    def calc_freqs_in_windows(self, sequences):
+    def seq_to_np_array(self, sequences):
         # convert sequence strings to 2d array
-        sequences = np.asarray(list(map(list, sequences)))
-        # convert sequence arrays to boolean values indicating amino acid presence
-        is_amino = np.where(sequences == self.amino_acid, 1, 0)
+        return np.asarray(list(map(list, sequences)))
+
+    def to_boolean(self, sequences_arrays):
+        # convert sequence arrays to boolean values indicating codon presence
+        return np.where(sequences_arrays == self.codon, 1, 0)
+
+    def window_counts(self, is_codon):
         # convolution weights
         weights = np.ones(self.window_size, dtype=int)
         # calculate sum of boolean values for each window in each sequence
-        window_sums = [np.convolve(a, weights, mode='valid') for a in is_amino]
-        window_sums = np.asarray(window_sums)
-        # calculate frequencies
-        windows_freqs = window_sums / self.window_size
-        return windows_freqs
+        return np.asarray([np.convolve(row, weights, mode='valid')
+                           for row in is_codon])
 
-    def calculate_taxa_freqs(self):
+    def windows_freqs(self, window_counts):
+        return window_counts / self.window_size
+
+    def window_means(self, window_counts):
+        return window_counts.mean(axis=0)
+
+    def window_var(self, window_counts):
+        return window_counts.var(axis=0)
+
+    def taxa_freq_means(self):
         taxa_window_freqs = np.full((self.num_fasta_files), None)
         with Path('data/processed') as entries:
             for file_idx, taxa_file in enumerate(entries.iterdir()):
@@ -59,20 +69,19 @@ class SlidingWindow:
                 with open(taxa_file, "r") as f:
                     sequences = f.readlines()
                 # calculate the frequencies in each window of each sequence
-                freqs_in_windows = self.calc_freqs_in_windows(sequences)
-                taxa_window_freqs[file_idx] = freqs_in_windows
+                sequences_arrays = self.seq_to_np_array(sequences)
+                is_codon = self.to_boolean(sequences_arrays)
+                window_counts = self.window_counts(is_codon)
+                window_frequencies = self.windows_freqs(window_counts)
+                taxa_freq_means = self.window_means(
+                    window_frequencies)
+                taxa_window_freqs[file_idx] = taxa_freq_means
         return taxa_window_freqs
-
-    def window_means(self, taxa_window_freqs):
-        return np.asarray([taxa.mean(axis=0) for taxa in taxa_window_freqs])
-
-    def window_var(self, taxa_window_freqs):
-        return np.asarray([taxa.var(axis=0) for taxa in taxa_window_freqs])
 
     def plot_freqs(self, names, freq_means):
         plt.rcParams['figure.figsize'] = [15, 5]
         plt.stackplot(range(freq_means[0].size), *freq_means)
-        plt.title(f"Amino acid: {self.amino_acid}")
+        plt.title(f"Amino acid: {self.codon}")
         plt.xlabel(f"Window position (window size = {self.window_size})")
         plt.ylabel('Stacked mean window frequency')
         plt.legend(names)
