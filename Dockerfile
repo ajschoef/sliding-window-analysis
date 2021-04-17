@@ -16,4 +16,4 @@ COPY data/processed data/processed
 COPY main.py .
 
 # Run the application:
-CMD ["python", "-u", "main.py"]
+CMD ["python", "main.py"]
