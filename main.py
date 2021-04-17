@@ -10,10 +10,8 @@ def main():
 
     # create sliding window instance
     sw = sliding_window.SlidingWindow(directory_path, amino_acid, window_size)
-    # processed and write FASTA files
-    sw.write_processed_fasta()
     # calculate window frequencies for each taxa
-    taxa_window_freq_means = sw.taxa_freq_means()
+    taxa_window_freq_means = sw.run_data_pipeline()
     # plot window frequencies of all taxa
     sw.plot_freqs(names, taxa_window_freq_means)
 
