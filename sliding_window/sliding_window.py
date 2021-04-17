@@ -9,7 +9,6 @@ class SlidingWindow:
         self.directory_path = Path(directory_path)
         self.codon = codon
         self.window_size = window_size
-        self.num_fasta_files = 0
 
     def process_fasta(self, lines):
         # extract protein sequence data from FASTA file
@@ -45,7 +44,7 @@ class SlidingWindow:
         return window_counts.var(axis=0)
 
     def window_freq_means(self, sequences):
-        # calculate the frequencies in each window of each sequence
+        # calculate the mean frequency in each window of each sequence
         sequences_arrays = self.seq_to_np_array(sequences)
         is_codon = self.to_boolean(sequences_arrays)
         window_counts = self.window_counts(is_codon)
@@ -55,15 +54,17 @@ class SlidingWindow:
 
     def run_data_pipeline(self):
         with self.directory_path as entries:
-            fasta = [self.read_fasta(f) for f in entries.iterdir()]
-            taxa_sequences = [self.process_fasta(lines) for lines in fasta]
+            fastas = [self.read_fasta(f) for f in entries.iterdir()]
+            taxa_sequences = [self.process_fasta(lines) for lines in fastas]
             return [self.window_freq_means(taxa) for taxa in taxa_sequences]
 
-    def plot_freqs(self, names, taxa_window_data):
+    def plot_freqs(self, taxa_window_data):
         plt.rcParams['figure.figsize'] = [15, 5]
         plt.stackplot(range(taxa_window_data[0].size), *taxa_window_data)
         plt.title(f"Amino acid: {self.codon}")
         plt.xlabel(f"Window position (window size = {self.window_size})")
         plt.ylabel('Stacked mean window frequency')
-        plt.legend(names)
+        with self.directory_path as entries:
+            taxa_names = [f.name.split('.')[0] for f in entries.iterdir()]
+        plt.legend(taxa_names)
         plt.show()
