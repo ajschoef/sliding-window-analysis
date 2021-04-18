@@ -1,19 +1,25 @@
 from sliding_window import sliding_window
-import sys
+import argparse
 
 
 def main():
 
-    try:
-        directory_path = sys.argv[1]
-        window_size = int(sys.argv[2])
-        amino_acid = sys.argv[3]
-    except IndexError:
-        raise SystemExit(
-            f"Usage: {sys.argv[0]} <path_to_fasta_files> <codon> <window_size>")
+    # parse command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "directory_path",
+        help="the path to the directory containing FASTA files")
+    parser.add_argument(
+        "codon",
+        help="the codon to calculate statistics for in each window")
+    parser.add_argument(
+        "window_size",
+        help="the number of positions to include in each window", type=int)
+    args = parser.parse_args()
 
     # create sliding window instance
-    sw = sliding_window.SlidingWindow(directory_path, amino_acid, window_size)
+    sw = sliding_window.SlidingWindow(
+        args.directory_path, args.codon, args.window_size)
     # calculate window frequencies for each taxa
     taxa_window_freq_means = sw.run_data_pipeline()
     # plot window frequencies of all taxa
