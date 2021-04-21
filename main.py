@@ -10,8 +10,8 @@ def main():
         "directory_path",
         help="the path to the directory containing FASTA files")
     parser.add_argument(
-        "codon",
-        help="the codon to calculate statistics for in each window")
+        "amino_acids",
+        help="the amino acid(s) to calculate statistics for in each window")
     parser.add_argument(
         "window_size",
         help="the number of positions to include in each window", type=int)
