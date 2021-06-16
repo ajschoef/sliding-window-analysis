@@ -128,9 +128,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Get rid of .DS_Store
-.DS_Store/
-
 .vscode
 
 # original sliding window notebook for benchmarking purposes
@@ -149,3 +146,6 @@ junk_code.txt
 # outputs
 results/
 
+# Get rid of .DS_Store
+sliding_window/.DS_Store
+.DS_Store
