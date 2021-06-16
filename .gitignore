@@ -140,5 +140,12 @@ cluster_locator.ipynb
 # data files
 data/
 
-benchmark.ipynb
+# experimental code
+experiment.ipynb
+
+# code that may be useful
+junk_code.txt
+
+# outputs
+results/
 
