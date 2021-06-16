@@ -1,1 +1,1 @@
-# sliding-window-plot
+# sliding-window-analysis
