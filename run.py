@@ -17,18 +17,15 @@ def main():
     parser.add_argument(
         "window_size",
         type=int,
-        metavar=">= 1",
-        help="The number of sequence positions to include in each window")
+        help="The number of sequence positions (>= 1) to include in each window")
     parser.add_argument(
         "cutoff",
         type=float,
-        metavar="[0-1]",
-        help="Average window frequencies below the cutoff value are filtered out")
+        help="Average window frequencies below the cutoff value [0-1] are filtered out")
     parser.add_argument(
         "--stride",
         type=int,
-        metavar=">= 1",
-        help="The number of sequence positions to move the window after each calculation (default = 1)")
+        help="The number of sequence positions (>= 1) between adjacent windows (default = 1)")
     parser.add_argument(
         "--fit",
         help="A multitask elastic net model is fit and saved to: results/multitask_elastic_net.pickle")
