@@ -12,7 +12,7 @@ RUN pip install -r requirements.txt
 # Copy files
 COPY sliding_window sliding_window
 COPY data/raw data/raw
-COPY main.py .
+COPY run.py .
 
-# Run the application:
-CMD ["python", "main.py"]
+# Run the application
+ENTRYPOINT ["python", "run.py"]

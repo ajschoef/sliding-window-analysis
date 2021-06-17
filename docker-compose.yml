@@ -1,6 +1,11 @@
 version: "3.9"
 services:
-  python:
+  app:
+    build: .
     image: sliding-window
     volumes:
       - data:/data
+      - results:/results
+volumes:
+  data:
+  results:
