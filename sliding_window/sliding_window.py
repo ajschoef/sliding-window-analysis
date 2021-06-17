@@ -153,4 +153,4 @@ class SlidingWindow:
         plt.xlabel(f"Window position (window size = {self.window_size})")
         plt.ylabel('Mean window frequency')
         plt.tight_layout()
-        plt.show()
+        plt.savefig('results/taxa_window_comparisons.pdf')
