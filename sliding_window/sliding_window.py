@@ -148,7 +148,6 @@ class SlidingWindow:
                          labelsize=6, labelrotation=-90)
         axes.set_xticks(window_range)
         axes.set_xticklabels(df['Position'][::3])
-        plt.legend(['Meso', 'Psychro', 'Thermo'])
         plt.title(
             f"Amino acid{'s' if self.amino_acids.size > 1 else ''}: {', '.join(self.amino_acids)}")
         plt.xlabel(f"Window position (window size = {self.window_size})")
