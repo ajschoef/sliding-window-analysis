@@ -10,10 +10,10 @@ from pathlib import Path
 
 class SlidingWindow:
 
-    def __init__(self, directory_path, amino_acids, window_size, cutoff, stride=None):
+    def __init__(self, path_to_data, amino_acids, window_size, cutoff, stride=None):
         np.warnings.filterwarnings(
             'error', category=np.VisibleDeprecationWarning)
-        self.directory_path = Path(directory_path)
+        self.path_to_data = Path(path_to_data)
         self.amino_acids = np.asarray(list(amino_acids))
         self.window_size = window_size
         self.cutoff = cutoff
@@ -21,7 +21,7 @@ class SlidingWindow:
         self.frequencies = None
         self.frequency_means = None
         self.filtered_indices = None
-        with self.directory_path as entries:
+        with self.path_to_data as entries:
             self.taxa_names = [f.name.split('.')[0] for f in entries.iterdir()]
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
@@ -72,7 +72,7 @@ class SlidingWindow:
         return window_frequencies
 
     def taxa_sequences(self):
-        with self.directory_path as entries:
+        with self.path_to_data as entries:
             fastas = [self.read_fasta(f) for f in entries.iterdir()
                       if f.name.lower().endswith(self.fasta_extensions)]
         return [self.process_fasta(lines) for lines in fastas]
@@ -148,9 +148,10 @@ class SlidingWindow:
                          labelsize=6, labelrotation=-90)
         axes.set_xticks(window_range)
         axes.set_xticklabels(df['Position'][::3])
+        plt.legend(['Meso', 'Psychro', 'Thermo'])
         plt.title(
             f"Amino acid{'s' if self.amino_acids.size > 1 else ''}: {', '.join(self.amino_acids)}")
         plt.xlabel(f"Window position (window size = {self.window_size})")
         plt.ylabel('Mean window frequency')
         plt.tight_layout()
-        plt.savefig('results/taxa_window_comparisons.pdf')
+        plt.savefig('results/taxa_window_comparisons.png')

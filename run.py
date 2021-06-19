@@ -7,7 +7,7 @@ def main():
     # parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "directory_path",
+        "path_to_data",
         type=str,
         help="The path to the directory containing FASTA files")
     parser.add_argument(
@@ -41,10 +41,10 @@ def main():
         if args.stride < 1:
             parser.error("Minimum allowed is 1")
         sw = sliding_window.SlidingWindow(
-            args.directory_path, args.amino_acids, args.window_size, args.cutoff, args.stride)
+            args.path_to_data, args.amino_acids, args.window_size, args.cutoff, args.stride)
     else:  # otherwise, create instance with stride = 1
         sw = sliding_window.SlidingWindow(
-            args.directory_path, args.amino_acids, args.window_size, args.cutoff)
+            args.path_to_data, args.amino_acids, args.window_size, args.cutoff)
 
     # calculate window frequencies for each taxa
     taxa_window_freq_means = sw.run_data_pipeline()
