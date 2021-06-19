@@ -11,8 +11,8 @@ from pathlib import Path
 class SlidingWindow:
 
     def __init__(self, path_to_data, amino_acids, window_size, cutoff, stride=None):
-        np.warnings.filterwarnings(
-            'error', category=np.VisibleDeprecationWarning)
+        # np.warnings.filterwarnings(
+        #     'error', category=np.VisibleDeprecationWarning)
         self.path_to_data = Path(path_to_data)
         self.amino_acids = np.asarray(list(amino_acids))
         self.window_size = window_size
@@ -21,10 +21,12 @@ class SlidingWindow:
         self.frequencies = None
         self.frequency_means = None
         self.filtered_indices = None
-        with self.path_to_data as entries:
-            self.taxa_names = [f.name.split('.')[0] for f in entries.iterdir()]
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
+        with self.path_to_data as entries:
+            self.taxa_names = [f.name.split('.')[0]
+                               for f in entries.iterdir()
+                               if f.name.lower().endswith(self.fasta_extensions)]
 
     def process_fasta(self, lines):
         # extract protein sequence data from FASTA file
