@@ -149,3 +149,7 @@ results/
 # Get rid of .DS_Store
 sliding_window/.DS_Store
 .DS_Store
+
+# temporary setup instructions
+setup_instructions.rtf
+

@@ -5,7 +5,7 @@ services:
     image: sliding-window
     volumes:
       - data:/data
-      - results:/results
+      - ./results:/results
 volumes:
   data:
   results:
