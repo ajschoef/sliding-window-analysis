@@ -28,4 +28,4 @@ For example,
 
     docker-compose run app data/raw G 10 0.15
 
-The program's output should now be in the generate "results" subdirectory.
+The program's output should now be in the generated "results" subdirectory.
