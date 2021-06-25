@@ -28,14 +28,14 @@ class SlidingWindow:
                                for f in entries.iterdir()
                                if f.name.lower().endswith(self.fasta_extensions)]
 
-    def process_fasta(self, lines):
+    def process_fasta(self, file_text):
         # extract protein sequence data from FASTA file
-        return [line[:-1] for line in lines if line[0] not in ('\n', '>')]
+        return [''.join(sequence.split('\n')[1:]) for sequence in file_text.split('>')][1:]
 
     def read_fasta(self, infile):
         # read in raw FASTA file
         with open(infile, "r") as f:
-            return f.readlines()
+            return f.read()
 
     def seq_to_np_array(self, sequences):
         # convert sequence strings to 2d array
@@ -132,7 +132,8 @@ class SlidingWindow:
         # add index for plotting
         window_range = np.arange(len(df))
         df = df.stack().reset_index()
-        df['plot_index'] = np.repeat(window_range, 3)
+        n_taxa = df['taxa'].nunique()
+        df['plot_index'] = np.repeat(window_range, n_taxa)
         df.columns = ['Position', 'Taxa', 'Frequency', 'Index']
         sns.scatterplot(data=df, x='Index', y='Frequency', hue='Taxa')
         # get min and max frequency for each window
@@ -149,10 +150,11 @@ class SlidingWindow:
         axes.tick_params(axis='x', which='major',
                          labelsize=6, labelrotation=-90)
         axes.set_xticks(window_range)
-        axes.set_xticklabels(df['Position'][::3])
+        axes.set_xticklabels(df['Position'][::n_taxa])
         plt.title(
             f"Amino acid{'s' if self.amino_acids.size > 1 else ''}: {', '.join(self.amino_acids)}")
         plt.xlabel(f"Window position (window size = {self.window_size})")
         plt.ylabel('Mean window frequency')
         plt.tight_layout()
         plt.savefig('results/taxa_window_comparisons.png')
+        plt.savefig('results/taxa_window_comparisons.pdf')
