@@ -4,8 +4,6 @@ services:
     build: .
     image: sliding-window
     volumes:
-      - data:/data
       - ./results:/results
 volumes:
-  data:
   results:

@@ -12,7 +12,8 @@ RUN pip install -r requirements.txt
 
 # Copy files
 COPY sliding_window sliding_window
-COPY data/raw data/raw
+ARG path_to_data
+COPY $path_to_data $path_to_data
 COPY run.py .
 
 # Run the application
