@@ -12,9 +12,9 @@ Open a command line interface and change the working directory to the sliding-wi
 
     cd example/path/to/directory/sliding-window-analysis
 
-Build the docker image.
+Build the docker image and specify the path to the directory containing your [FASTA files](https://en.wikipedia.org/wiki/FASTA_format)
 
-    docker-compose build
+    docker-compose build --build-arg path_to_data=example/path/
 
 For documentation on the program's arguments, run
 
@@ -26,6 +26,6 @@ To excute the program, pass the arguments listed below.
 
 For example,
 
-    docker-compose run app data/raw G 10 0.15
+    docker-compose run app example/path/ G 10 0.15
 
-The program's output should now be in the generated "results" subdirectory.
+The path_to_data argument should be the same as the one provided in the docker-compose build command. After running this command, the program's output should now be in the generated "results" subdirectory.
