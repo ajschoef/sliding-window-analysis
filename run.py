@@ -43,9 +43,8 @@ def main():
         parser.error("'window_size' must be greater than 0")
     if 0 > args.cutoff > 1:
         parser.error("'cutoff' must be between 0 and 1 (inclusive)")
-    if args.stride:
-        if args.stride < 1:
-            parser.error("'stride' must be greater than 0")
+    if args.stride and args.stride < 1:
+        parser.error("'stride' must be greater than 0")
 
     # make results directory if it doesn not already exist
     if not os.path.exists('results'):
@@ -55,7 +54,9 @@ def main():
     sw.run_pipeline()
     # plot window frequencies of all subsets
     window_plot = WindowPlot(sw)
-    window_plot.plot()
+    window_plot.dot_plot()
+    window_plot.ecdf_plot()
+    window_plot.kde_plot()
 
 
 if __name__ == "__main__":

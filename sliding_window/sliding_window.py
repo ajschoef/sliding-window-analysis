@@ -8,7 +8,8 @@ from pathlib import Path
 
 
 class SlidingWindow:
-
+    # FIXME epsilon is not currently in program arguments
+    # FIXME make max_iter, epsilon, and minimum_regularization all parameters for --fit
     def __init__(self, path_to_data, target, window_size, cutoff, stride=1, colors=None, fit=None, epsilon=0.05):
         #### parameters ####
         self.path_to_data = Path(path_to_data)
@@ -71,8 +72,7 @@ class SlidingWindow:
         self.summary.append(self.subset_summary_stats(is_target))
         window_counts = self.sequence_window_counts(is_target)
         window_counts = self.filter_stride(window_counts)
-        window_frequencies = window_counts / self.window_size
-        return window_frequencies
+        return window_counts / self.window_size
 
     def read_fasta(self, infile):
         # read in raw FASTA file
@@ -168,6 +168,7 @@ class SlidingWindow:
         indices = np.where(mask)
         return indices, df.iloc[:, mask]
 
+    # FIXME make modeling its own file/class
     def fit_elastic_net(self):
         # set design matrix and outcome
         y = self.frequencies['subset']
