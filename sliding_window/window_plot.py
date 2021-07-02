@@ -20,12 +20,17 @@ class WindowPlot:
         self.max_freqs = self.filtered_data.groupby('position').max()[
             'frequency']
 
+    def save_plot(self, file_name):
+        plt.savefig(f'results/{file_name}.png')
+        plt.savefig(f'results/{file_name}.pdf')
+
     def ecdf_plot(self):
         plot = sns.displot(data=self.filtered_data, x="frequency",
                            hue="subset", kind="ecdf", palette=self.colors)
         plot._legend.set_title('Subset')
         plt.xlabel('Frequency')
         plt.tight_layout()
+        self.save_plot('ecdf_plot')
         plt.show()
 
     def kde_plot(self):
@@ -34,6 +39,7 @@ class WindowPlot:
         plot._legend.set_title('Subset')
         plt.xlabel('Frequency')
         plt.tight_layout()
+        self.save_plot('kde_plot')
         plt.show()
 
     def alternate_vlines(self):
@@ -63,6 +69,5 @@ class WindowPlot:
             f"Window position (window size = {self.window_size})")
         plt.ylabel('Mean window frequency')
         plt.tight_layout()
-        plt.savefig('results/window_comparisons.png')
-        plt.savefig('results/window_comparisons.pdf')
+        self.save_plot('dot_plot')
         plt.show()
