@@ -1,4 +1,5 @@
-from sliding_window import sliding_window
+from sliding_window.sliding_window import SlidingWindow
+from sliding_window.window_plot import WindowPlot
 import argparse
 import os
 
@@ -29,6 +30,7 @@ def main():
         help="The number of sequence positions (>= 1) between adjacent windows (default = 1)")
     parser.add_argument(
         "--fit",
+        action='store_true',
         help="A multitask elastic net model is fit and saved to: results/multitask_elastic_net.pickle")
     parser.add_argument(
         "--colors",
@@ -48,15 +50,12 @@ def main():
     # make results directory if it doesn not already exist
     if not os.path.exists('results'):
         os.makedirs('results')
-    # create sliding window instance
-    sw = sliding_window.SlidingWindow(**vars(args))
-    # process data for each subset
-    sw.run_data_pipeline()
-    # fit multitask elastic net model and saves it to: results/multitask_elastic_net.pickle
-    if args.fit:
-        sw.fit_elastic_net()
+    # create sliding window instance and run data pipeline
+    sw = SlidingWindow(**vars(args))
+    sw.run_pipeline()
     # plot window frequencies of all subsets
-    sw.plot(sw.frequency_means)
+    window_plot = WindowPlot(sw)
+    window_plot.plot()
 
 
 if __name__ == "__main__":
