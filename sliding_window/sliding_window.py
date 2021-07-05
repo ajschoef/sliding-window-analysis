@@ -28,6 +28,8 @@ class SlidingWindow:
         self.stride_indices = None
         self.summary = []
         #### helper variables ####
+        self.processed_data_path = 'results/processed_data/'
+        self.model_output_path = 'results/model_output/'
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
         # generate subset labels from filenames
@@ -102,7 +104,8 @@ class SlidingWindow:
         col_names = {col: idx for idx, col in zip(
             self.stride_indices, self.frequencies.columns[1:])}
         self.frequencies.rename(columns=col_names, inplace=True)
-        self.frequencies.to_csv('results/window_frequencies.csv', index=False)
+        self.frequencies.to_csv(
+            f'{self.processed_data_path}window_frequencies.csv', index=False)
 
     def freq_window_means(self):
         self.freq_means_wide = self.frequencies.groupby('subset').mean()
@@ -112,23 +115,37 @@ class SlidingWindow:
         self.freq_means_long = self.freq_means_long.stack().reset_index()
         self.freq_means_long.columns = [
             'position', 'subset', 'frequency']
-        self.freq_means_long.to_csv('results/window_frequency_means.csv')
+        self.freq_means_long.to_csv(
+            f'{self.processed_data_path}window_frequency_means.csv')
 
-    def filter_by_delta_cutoff(self):
-        grouped_df = self.freq_means_long.groupby('position')
-        greater_than_cutoff = []
+    def greater_than_cutoff(self, grouped_df):
+        is_cutoff = []
+        deltas = []
+        # calculate differences between means of subsets for each window
         for _, group in grouped_df:
             difference_matrix = abs(
                 group['frequency'].values - group['frequency'].values[:, None])
-            greater_than_cutoff.append(
+            deltas.append(difference_matrix)
+            # if any of the differences in the means of subsets for a window is less than the cutoff, filter it out
+            is_cutoff.append(
                 np.any(np.max(difference_matrix, axis=0) > self.cutoff))
-        # FIXME breaks when all are False. Use try/except and set cutoff to median in except
-        greater_than_cutoff = pd.Series(
-            np.repeat(greater_than_cutoff, self.n_subset))
-        self.filtered_data = self.freq_means_long[greater_than_cutoff].copy()
+        return is_cutoff, deltas
+
+    def filter_by_delta_cutoff(self):
+        grouped_df = self.freq_means_long.groupby('position')
+        is_cutoff, deltas = self.greater_than_cutoff(grouped_df)
+        # if all values are below the user specified cutoff, then filter values below the 3rd quartile of subset differences instead
+        if (~np.array(is_cutoff)).all():
+            self.cutoff = np.percentile(
+                np.array(deltas).reshape(-1), 75)
+            is_cutoff, _ = self.greater_than_cutoff(grouped_df)
+        is_cutoff = pd.Series(
+            np.repeat(is_cutoff, self.n_subset))
+        # remove values below delta cutoff
+        self.filtered_data = self.freq_means_long[is_cutoff].copy()
         self.filtered_data.reset_index(inplace=True, drop=True)
         self.filtered_data.to_csv(
-            'results/filtered_window_frequency_means.csv')
+            f'{self.processed_data_path}window_frequency_means_filtered.csv')
         self.window_range = np.arange(
             self.filtered_data['position'].nunique())
         self.filtered_data['x_ticks'] = np.repeat(
@@ -151,7 +168,8 @@ class SlidingWindow:
         self.summary.index = self.subset_names
         self.summary.index.name = 'subset'
         self.summary.reset_index(inplace=True)
-        self.summary.to_csv('results/summary_stats.csv', index=False)
+        self.summary.to_csv(
+            f'{self.processed_data_path}summary_stats.csv', index=False)
 
     # FIXME save how many collinear neighbors were filtered for display later
     def filter_collinear_neighbors(self, df):
@@ -192,7 +210,7 @@ class SlidingWindow:
                                            Cs=Cs,
                                            l1_ratios=l1_ratio)
         elastic_net.fit(X, y)
-        with open('results/logistic_regression_elastic_net.pickle', 'wb') as f:
+        with open(f'{self.model_output_path}logistic_regression_elastic_net.pickle', 'wb') as f:
             pickle.dump(elastic_net, f)
 
     def run_pipeline(self):

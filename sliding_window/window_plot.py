@@ -19,25 +19,27 @@ class WindowPlot:
             'frequency']
         self.max_freqs = self.filtered_data.groupby('position').max()[
             'frequency']
+        self.plots_path = 'results/plots/'
 
     def save_plot(self, file_name):
-        plt.savefig(f'results/{file_name}.png')
-        plt.savefig(f'results/{file_name}.pdf')
+        plt.savefig(f'{self.plots_path}{file_name}.png')
+        plt.savefig(f'{self.plots_path}{file_name}.pdf')
 
     def ecdf_plot(self):
-        plot = sns.displot(data=self.filtered_data, x="frequency",
+        plot = sns.displot(data=self.data, x="frequency",
                            hue="subset", kind="ecdf", palette=self.colors)
         plot._legend.set_title('Subset')
-        plt.xlabel('Frequency')
+        plt.xlabel('Mean window frequency')
         plt.tight_layout()
         self.save_plot('ecdf_plot')
         plt.show()
 
     def kde_plot(self):
+        max_freq = self.data['frequency'].max()
         plot = sns.displot(data=self.data,
-                           x="frequency", hue="subset", kind="kde", palette=self.colors)
+                           x="frequency", hue="subset", kind="kde", palette=self.colors).set(xlim=(0, max_freq))
         plot._legend.set_title('Subset')
-        plt.xlabel('Frequency')
+        plt.xlabel('Mean window frequency')
         plt.tight_layout()
         self.save_plot('kde_plot')
         plt.show()
