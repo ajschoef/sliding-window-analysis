@@ -46,9 +46,15 @@ def main():
     if args.stride and args.stride < 1:
         parser.error("'stride' must be greater than 0")
 
-    # make results directory if it doesn not already exist
-    if not os.path.exists('results'):
-        os.makedirs('results')
+    def make_dir(dir_name):
+        if not os.path.exists(dir_name):
+            os.makedirs(dir_name)
+
+    # make results directory if it doesn't already exist
+    make_dir('results')
+    make_dir('results/plots')
+    make_dir('results/processed_data')
+    make_dir('results/model_output')
     # create sliding window instance and run data pipeline
     sw = SlidingWindow(**vars(args))
     sw.run_pipeline()
