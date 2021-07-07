@@ -1,5 +1,6 @@
 from sliding_window.sliding_window import SlidingWindow
 from sliding_window.window_plot import WindowPlot
+from sliding_window.model import ElasticNet
 import argparse
 import os
 
@@ -47,22 +48,26 @@ def main():
         parser.error("'stride' must be greater than 0")
 
     def make_dir(dir_name):
+        # makes a directory if it doesn't already exist
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
 
-    # make results directory if it doesn't already exist
+    # make results, plots, processed data, and model output directories
     make_dir('results')
     make_dir('results/plots')
     make_dir('results/processed_data')
     make_dir('results/model_output')
+
     # create sliding window instance and run data pipeline
     sw = SlidingWindow(**vars(args))
     sw.run_pipeline()
+    # fit weighted multinomial logistic regression with elastic net penalty
+    if args.fit:
+        elastic_net = ElasticNet()  # FIXME need to pass parameters
+        elastic_net.fit_elastic_net()
     # plot window frequencies of all subsets
     window_plot = WindowPlot(sw)
-    window_plot.dot_plot()
-    window_plot.ecdf_plot()
-    window_plot.kde_plot()
+    window_plot.make_plots()
 
 
 if __name__ == "__main__":
