@@ -1,9 +1,5 @@
 import numpy as np
 import pandas as pd
-import pickle
-from numpy import linalg as LA
-from sklearn.linear_model import LogisticRegressionCV
-from sklearn.preprocessing import StandardScaler
 from pathlib import Path
 
 
@@ -29,7 +25,6 @@ class SlidingWindow:
         self.summary = []
         #### helper variables ####
         self.processed_data_path = 'results/processed_data/'
-        self.model_output_path = 'results/model_output/'
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
         # generate subset labels from filenames
@@ -118,11 +113,11 @@ class SlidingWindow:
         self.freq_means_long.to_csv(
             f'{self.processed_data_path}window_frequency_means.csv')
 
-    def greater_than_cutoff(self, grouped_df):
+    def greater_than_cutoff(self, groupby_position):
         is_cutoff = []
         deltas = []
         # calculate differences between means of subsets for each window
-        for _, group in grouped_df:
+        for _, group in groupby_position:
             difference_matrix = abs(
                 group['frequency'].values - group['frequency'].values[:, None])
             deltas.append(difference_matrix)
@@ -132,13 +127,13 @@ class SlidingWindow:
         return is_cutoff, deltas
 
     def filter_by_delta_cutoff(self):
-        grouped_df = self.freq_means_long.groupby('position')
-        is_cutoff, deltas = self.greater_than_cutoff(grouped_df)
+        groupby_position = self.freq_means_long.groupby('position')
+        is_cutoff, deltas = self.greater_than_cutoff(groupby_position)
         # if all values are below the user specified cutoff, then filter values below the 3rd quartile of subset differences instead
         if (~np.array(is_cutoff)).all():
             self.cutoff = np.percentile(
                 np.array(deltas).reshape(-1), 75)
-            is_cutoff, _ = self.greater_than_cutoff(grouped_df)
+            is_cutoff, _ = self.greater_than_cutoff()
         is_cutoff = pd.Series(
             np.repeat(is_cutoff, self.n_subset))
         # remove values below delta cutoff
@@ -171,48 +166,6 @@ class SlidingWindow:
         self.summary.to_csv(
             f'{self.processed_data_path}summary_stats.csv', index=False)
 
-    # FIXME save how many collinear neighbors were filtered for display later
-    def filter_collinear_neighbors(self, df):
-
-        def unit_vector(vector):
-            return vector / LA.norm(vector)
-
-        def angle_between(v0, v1):
-            return np.arccos(np.clip(np.dot(unit_vector(v0), unit_vector(v1)), -1.0, 1.0))
-
-        mask = [angle_between(df[i], df[i+1]) >
-                self.epsilon for i in df.iloc[:, :-1]]
-        mask = [True] + mask
-        indices = np.where(mask)
-        return indices, df.iloc[:, mask]
-
-    # FIXME make modeling its own file/class
-    def fit_elastic_net(self):
-        # set design matrix and outcome
-        y = self.frequencies['subset']
-        X = self.frequencies.drop('subset', 1)
-        # FIXME indices are currently not used; will be used to find neighbors
-        indices, X = self.filter_collinear_neighbors(X)
-        # scale data to 0 mean and unit variance
-        scaler = StandardScaler()
-        scaler.fit(X)
-        X = scaler.transform(X)
-        # grid search ranges for regularization parameters
-        Cs = 1 / np.power(10, np.arange(3, 7, step=0.1))
-        l1_ratio = [0.1, 0.25, 0.5, 0.75, 0.9]
-        """ tune hyperparameters for weighted multinomial logistic regression with
-            elastic net penalty via stratified k-fold cross validation"""
-        elastic_net = LogisticRegressionCV(multi_class='multinomial',
-                                           penalty='elasticnet',
-                                           class_weight='balanced',
-                                           solver='saga',
-                                           max_iter=1000,
-                                           Cs=Cs,
-                                           l1_ratios=l1_ratio)
-        elastic_net.fit(X, y)
-        with open(f'{self.model_output_path}logistic_regression_elastic_net.pickle', 'wb') as f:
-            pickle.dump(elastic_net, f)
-
     def run_pipeline(self):
         self.subset_sequences()
         self.subset_frequencies()
@@ -220,5 +173,3 @@ class SlidingWindow:
         self.to_long_format()
         self.filter_by_delta_cutoff()
         self.make_summary_stats()
-        if self.fit:
-            self.fit_elastic_net()
