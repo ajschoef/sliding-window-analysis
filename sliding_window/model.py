@@ -7,21 +7,32 @@ from sklearn.preprocessing import StandardScaler
 
 class ElasticNet():
 
-    def __init__(self, sliding_window, theta=0.05, max_iter=1000, lower=3, upper=7):
+    def __init__(self, sliding_window, theta=0.1, max_iter=1000, upper=1e-3, lower=1e-7, n_cv_values=20):
+        # FIXME upper must be larger than lower, make a check
         # the cutoff angle at which near-collinear neighboring columns in X are filtered
         self.theta = theta
         # set design matrix and outcome
-        self.X = sliding_window.frequencies.drop('subset', 1, inplace=False)
         self.y = sliding_window.frequencies['subset']
+        self.X = sliding_window.frequencies.drop(
+            ['subset', 'header'], axis=1, inplace=False)
         # set hyperparameters ranges
         self.max_iter = max_iter
-        self.Cs = self.set_regularization(lower, upper)
+        self.n_cv_values = n_cv_values
+        self.Cs = self.make_cv_grid(upper, lower)
         self.l1_ratio = np.arange(start=0.05, stop=1, step=0.1)
         # filepath for saving model output
         self.model_output_path = 'results/model_output/'
 
-    def set_regularization(self, lower, upper):
-        self.Cs = 1 / np.power(10, np.arange(lower, upper, step=0.1))
+    def make_cv_grid(self, upper, lower):
+
+        def get_exponent(number):
+            base10 = np.log10(abs(number))
+            return abs(np.floor(base10))
+
+        lower = get_exponent(lower)
+        upper = get_exponent(upper)
+        step = abs(upper - lower) / self.n_cv_values
+        return 1 / np.power(10, np.arange(start=upper, stop=lower, step=step))
 
     # FIXME save how many collinear neighbors were filtered for display later
     def filter_collinear_neighbors(self):
@@ -39,17 +50,16 @@ class ElasticNet():
         self.X = self.X.iloc[:, mask]
         return indices
 
-    def scale(self):
+    def scale_X(self):
         scaler = StandardScaler()
         scaler.fit(self.X)
         self.X = scaler.transform(self.X)
 
     def fit_elastic_net(self):
         # FIXME indices are currently not used; will be used to find neighbors
-        indices = self.filter_collinear_neighbors(self.X)
+        indices = self.filter_collinear_neighbors()
         # scale data to 0 mean and unit variance
-        self.scale(self.X)
-        # grid search ranges for regularization parameters
+        self.scale_X()
         """ tune hyperparameters for weighted multinomial logistic regression with
             elastic net penalty via stratified k-fold cross validation"""
         elastic_net = LogisticRegressionCV(multi_class='multinomial',

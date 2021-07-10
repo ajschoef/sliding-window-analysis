@@ -63,7 +63,7 @@ def main():
     sw.run_pipeline()
     # fit weighted multinomial logistic regression with elastic net penalty
     if args.fit:
-        elastic_net = ElasticNet()  # FIXME need to pass parameters
+        elastic_net = ElasticNet(sw)  # FIXME need to pass parameters
         elastic_net.fit_elastic_net()
     # plot window frequencies of all subsets
     window_plot = WindowPlot(sw)
