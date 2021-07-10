@@ -18,8 +18,8 @@ class SlidingWindow:
         self.epsilon = epsilon
         #### data ####
         self.frequencies = None
-        self.freq_means_wide = None
-        self.freq_means_long = None
+        self.groupby_subset = None
+        self.window_data = None
         self.filtered_data = None
         self.stride_indices = None
         self.summary = []
@@ -33,7 +33,6 @@ class SlidingWindow:
                                  for f in entries.iterdir()
                                  if f.name.lower().endswith(self.fasta_extensions)]
         self.n_subset = len(self.subset_names)
-        self.window_range = None
 
     def seq_to_np_array(self, sequences):
         # convert sequence strings to 2d array
@@ -52,24 +51,10 @@ class SlidingWindow:
     def sequence_window_counts(self, is_target):
         return np.asarray([self.window_counts(seq) for seq in is_target])
 
-    def window_means(self, window_stat):
-        return window_stat.mean(axis=0)
-
-    def window_var(self, window_stat):
-        return window_stat.var(axis=0)
-
     def filter_stride(self, sequences):
         self.stride_indices = np.arange(
             start=1, stop=sequences.shape[1]+1, step=self.stride)
         return sequences[:, 0::self.stride]
-
-    def window_frequencies(self, sequences):
-        sequences_arrays = self.seq_to_np_array(sequences)
-        is_target = self.to_boolean(sequences_arrays)
-        self.summary.append(self.subset_summary_stats(is_target))
-        window_counts = self.sequence_window_counts(is_target)
-        window_counts = self.filter_stride(window_counts)
-        return window_counts / self.window_size
 
     def read_fasta(self, infile):
         # read in raw FASTA file
@@ -78,73 +63,90 @@ class SlidingWindow:
 
     def process_fasta(self, file_text):
         # extract protein sequence data from FASTA file
-        return [''.join(sequence.split('\n')[1:]) for sequence in file_text.split('>')][1:]
+        sequences = file_text.split('>')[1:]
+        sequences = [sequence.split('\n') for sequence in sequences]
+        return [(sequence[0], ''.join(sequence[1:]))
+                for sequence in sequences]
+        # headers, sequences = zip(*sequences)
 
     def subset_sequences(self):
         with self.path_to_data as entries:
             fastas = [self.read_fasta(f) for f in entries.iterdir()
                       if f.name.lower().endswith(self.fasta_extensions)]
-        return [self.process_fasta(lines) for lines in fastas]
+        return [self.process_fasta(fasta) for fasta in fastas]
+
+    def window_frequencies(self, sequences):
+        header, sequences = zip(*sequences)
+        sequences_arrays = self.seq_to_np_array(sequences)
+        is_target = self.to_boolean(sequences_arrays)
+        self.summary.append(self.subset_summary_stats(is_target))
+        window_counts = self.sequence_window_counts(is_target)
+        window_counts = self.filter_stride(window_counts)
+        window_frequencies = window_counts / self.window_size
+        return pd.concat([pd.Series(header, name='header'),
+                          pd.DataFrame(window_frequencies)], axis=1)
 
     def subset_frequencies(self):
         # calculate window frequencies for each subset
-        self.frequencies = [pd.DataFrame(self.window_frequencies(subset))
+        self.frequencies = [self.window_frequencies(subset)
                             for subset in self.subset_sequences()]
         # concatenate subset frequencies and add subset column to dataframe
         self.frequencies = pd.concat(
             self.frequencies, keys=self.subset_names).reset_index()
         self.frequencies.drop('level_1', axis=1, inplace=True)
         self.frequencies.rename(columns={'level_0': 'subset'}, inplace=True)
-        # rename columns so they match the original positions in their sequence before filtering
+        # rename columns so they match the original positions in their sequence before filtering by stride
         col_names = {col: idx for idx, col in zip(
-            self.stride_indices, self.frequencies.columns[1:])}
+            self.stride_indices, self.frequencies.columns[2:])}
         self.frequencies.rename(columns=col_names, inplace=True)
         self.frequencies.to_csv(
             f'{self.processed_data_path}window_frequencies.csv', index=False)
+        self.groupby_subset = self.frequencies.groupby('subset')
 
     def freq_window_means(self):
-        self.freq_means_wide = self.frequencies.groupby('subset').mean()
+        self.window_data = self.groupby_subset.mean().T.stack().reset_index()
 
-    def to_long_format(self):
-        self.freq_means_long = self.freq_means_wide.T
-        self.freq_means_long = self.freq_means_long.stack().reset_index()
-        self.freq_means_long.columns = [
-            'position', 'subset', 'frequency']
-        self.freq_means_long.to_csv(
-            f'{self.processed_data_path}window_frequency_means.csv')
+    def freq_window_variance(self):
+        return self.groupby_subset.var().T.stack().reset_index()[0]
+
+    def freq_window_std(self):
+        return self.groupby_subset.std().T.stack().reset_index()[0]
+
+    def make_dataframe(self):
+        self.freq_window_means()
+        self.window_data['variance'] = self.freq_window_variance()
+        self.window_data['std'] = self.freq_window_std()
+        self.window_data.columns = [
+            'position', 'subset', 'window_mean', 'variance', 'std']
+        self.window_data.to_csv(
+            f'{self.processed_data_path}window_data.csv', index=False)
 
     def greater_than_cutoff(self, groupby_position):
         is_cutoff = []
         deltas = []
-        # calculate differences between means of subsets for each window
+        # calculate pairwise differences between means of subsets for each window
         for _, group in groupby_position:
-            difference_matrix = abs(
-                group['frequency'].values - group['frequency'].values[:, None])
-            deltas.append(difference_matrix)
+            diff_matrix = abs(
+                group['window_mean'].values - group['window_mean'].values[:, None])
+            deltas.append(diff_matrix)
             # if any of the differences in the means of subsets for a window is less than the cutoff, filter it out
-            is_cutoff.append(
-                np.any(np.max(difference_matrix, axis=0) > self.cutoff))
+            is_cutoff.append(np.any(np.max(diff_matrix, axis=0) > self.cutoff))
         return is_cutoff, deltas
 
     def filter_by_delta_cutoff(self):
-        groupby_position = self.freq_means_long.groupby('position')
+        groupby_position = self.window_data.groupby('position')
         is_cutoff, deltas = self.greater_than_cutoff(groupby_position)
         # if all values are below the user specified cutoff, then filter values below the 3rd quartile of subset differences instead
         if (~np.array(is_cutoff)).all():
             self.cutoff = np.percentile(
                 np.array(deltas).reshape(-1), 75)
-            is_cutoff, _ = self.greater_than_cutoff()
-        is_cutoff = pd.Series(
-            np.repeat(is_cutoff, self.n_subset))
+            is_cutoff, _ = self.greater_than_cutoff(groupby_position)
+        is_cutoff = pd.Series(np.repeat(is_cutoff, self.n_subset))
         # remove values below delta cutoff
-        self.filtered_data = self.freq_means_long[is_cutoff].copy()
+        self.filtered_data = self.window_data[is_cutoff].copy()
         self.filtered_data.reset_index(inplace=True, drop=True)
         self.filtered_data.to_csv(
-            f'{self.processed_data_path}window_frequency_means_filtered.csv')
-        self.window_range = np.arange(
-            self.filtered_data['position'].nunique())
-        self.filtered_data['x_ticks'] = np.repeat(
-            self.window_range, self.n_subset)
+            f'{self.processed_data_path}window_data_filtered.csv', index=False)
 
     def subset_summary_stats(self, is_target):
         alignment_length = is_target.shape[1]
@@ -169,7 +171,6 @@ class SlidingWindow:
     def run_pipeline(self):
         self.subset_sequences()
         self.subset_frequencies()
-        self.freq_window_means()
-        self.to_long_format()
+        self.make_dataframe()
         self.filter_by_delta_cutoff()
         self.make_summary_stats()
