@@ -32,19 +32,22 @@ def main():
     parser.add_argument(
         "--fit",
         action='store_true',
-        help="A multitask elastic net model is fit and saved to: results/multitask_elastic_net.pickle")
+        help="A multinomial logistic regression with elastic net penalty model is fit and saved to: results/elastic_net.pickle")
     parser.add_argument(
         "--colors",
         nargs='*',
         help="The colors of each sequence in the comparision plots. Can be any color or code accepted by Matplotlib")
 
     # parse arguments and validate them
-    args = parser.parse_args()
-    if args.window_size < 1:
+    args = vars(parser.parse_args())
+    colors = args.pop('colors')
+    fit = args.pop('fit')
+
+    if args['window_size'] < 1:
         parser.error("'window_size' must be greater than 0")
-    if 0 > args.cutoff > 1:
+    if 0 > args['cutoff'] > 1:
         parser.error("'cutoff' must be between 0 and 1 (inclusive)")
-    if args.stride and args.stride < 1:
+    if args['stride'] and args['stride'] < 1:
         parser.error("'stride' must be greater than 0")
 
     def make_dir(dir_name):
@@ -58,15 +61,23 @@ def main():
     make_dir('results/processed_data')
     make_dir('results/model_output')
 
-    # create sliding window instance and run data pipeline
-    sw = SlidingWindow(**vars(args))
+    # create sliding window instance
+    sw = SlidingWindow(**args)
+    # if colors are passed, check if the number of colors matches the number of subsets
+    if colors and len(colors) != sw.n_subset:
+        parser.error(
+            f'the number of colors must equal to the number of subsets ({sw.n_subset})')
+    # run data processing pipeline
+    print("Processing data...")
     sw.run_pipeline()
     # fit weighted multinomial logistic regression with elastic net penalty
-    if args.fit:
-        elastic_net = ElasticNet(sw)  # FIXME need to pass parameters
+    if fit:
+        print("Fitting model...")
+        elastic_net = ElasticNet(sw)
         elastic_net.fit_elastic_net()
     # plot window frequencies of all subsets
-    window_plot = WindowPlot(sw)
+    window_plot = WindowPlot(sw, colors)
+    print("Rendering plots...")
     window_plot.make_plots()
 
 
