@@ -1,29 +1,26 @@
 import numpy as np
 import pandas as pd
+import warnings
 from pathlib import Path
 
 
 class SlidingWindow:
-    # FIXME epsilon is not currently in program arguments
-    # FIXME make max_iter, epsilon, and minimum_regularization all parameters for --fit
-    def __init__(self, path_to_data, target, window_size, cutoff, stride=1, colors=None, fit=None, epsilon=0.05):
-        #### parameters ####
+
+    def __init__(self, path_to_data, target, window_size, cutoff, stride=1):
+        ###### parameters ######
         self.path_to_data = Path(path_to_data)
         self.target = np.asarray(list(target))
         self.window_size = window_size
         self.cutoff = cutoff
         self.stride = stride
-        self.colors = colors
-        self.fit = fit
-        self.epsilon = epsilon
-        #### data ####
+        ###### data ######
         self.frequencies = None
         self.groupby_subset = None
         self.window_data = None
         self.filtered_data = None
         self.stride_indices = None
         self.summary = []
-        #### helper variables ####
+        ###### helper variables ######
         self.processed_data_path = 'results/processed_data/'
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
@@ -31,8 +28,11 @@ class SlidingWindow:
         with self.path_to_data as entries:
             self.subset_names = [f.name.split('.')[0]
                                  for f in entries.iterdir()
-                                 if f.name.lower().endswith(self.fasta_extensions)]
+                                 if self.is_fasta(f)]
         self.n_subset = len(self.subset_names)
+
+    def is_fasta(self, file):
+        return file.name.lower().endswith(self.fasta_extensions)
 
     def seq_to_np_array(self, sequences):
         # convert sequence strings to 2d array
@@ -72,7 +72,7 @@ class SlidingWindow:
     def subset_sequences(self):
         with self.path_to_data as entries:
             fastas = [self.read_fasta(f) for f in entries.iterdir()
-                      if f.name.lower().endswith(self.fasta_extensions)]
+                      if self.is_fasta(f)]
         return [self.process_fasta(fasta) for fasta in fastas]
 
     def window_frequencies(self, sequences):
@@ -133,14 +133,16 @@ class SlidingWindow:
             is_cutoff.append(np.any(np.max(diff_matrix, axis=0) > self.cutoff))
         return is_cutoff, deltas
 
-    def filter_by_delta_cutoff(self):
+    def filter_delta_cutoff(self):
         groupby_position = self.window_data.groupby('position')
         is_cutoff, deltas = self.greater_than_cutoff(groupby_position)
         # if all values are below the user specified cutoff, then filter values below the 3rd quartile of subset differences instead
         if (~np.array(is_cutoff)).all():
-            self.cutoff = np.percentile(
-                np.array(deltas).reshape(-1), 75)
+            cutoff_copy = self.cutoff
+            self.cutoff = np.percentile(np.array(deltas).reshape(-1), 99)
             is_cutoff, _ = self.greater_than_cutoff(groupby_position)
+            warnings.warn(
+                f"All values were below the cutoff ({cutoff_copy}). Using the 99th percentile ({np.round(self.cutoff, decimals=6)}) as the cutoff instead")
         is_cutoff = pd.Series(np.repeat(is_cutoff, self.n_subset))
         # remove values below delta cutoff
         self.filtered_data = self.window_data[is_cutoff].copy()
@@ -152,18 +154,23 @@ class SlidingWindow:
         alignment_length = is_target.shape[1]
         seq_count = is_target.shape[0]
         target_count = np.sum(is_target)
-        seq_sums = np.sum(is_target, axis=0)
-        mean = np.mean(seq_sums)
-        variance = np.var(seq_sums)
-        std = np.sqrt(variance)
-        return pd.DataFrame([[alignment_length, seq_count, target_count, mean, variance, std]],
+        proportion = np.mean(is_target)
+        return pd.DataFrame([[alignment_length, seq_count, target_count, proportion]],
                             columns=['alignment_length', 'sequence_count', 'target_count',
-                                     'target_mean', 'target_variance', 'target_std'])
+                                     'target_proportion'])
 
     def make_summary_stats(self):
         self.summary = pd.concat(self.summary)
         self.summary.index = self.subset_names
         self.summary.index.name = 'subset'
+        subsets = [self.frequencies.loc[self.frequencies['subset'] == subset]
+                   for subset in self.subset_names]
+        self.summary['frequency_mean'] = [
+            np.mean(subset.iloc[:, 2:].values) for subset in subsets]
+        self.summary['frequency_variance'] = [
+            np.var(subset.iloc[:, 2:].values) for subset in subsets]
+        self.summary['frequency_std'] = np.sqrt(
+            self.summary['frequency_variance'])
         self.summary.reset_index(inplace=True)
         self.summary.to_csv(
             f'{self.processed_data_path}summary_stats.csv', index=False)
@@ -172,5 +179,5 @@ class SlidingWindow:
         self.subset_sequences()
         self.subset_frequencies()
         self.make_dataframe()
-        self.filter_by_delta_cutoff()
+        self.filter_delta_cutoff()
         self.make_summary_stats()
