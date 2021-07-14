@@ -36,7 +36,7 @@ def main():
     parser.add_argument(
         "--colors",
         nargs='*',
-        help="The colors of each sequence in the comparision plots. Can be any color or code accepted by Matplotlib")
+        help="The colors of each subset in the comparision plots. Can be any color or code accepted by Matplotlib")
 
     # parse arguments and validate them
     args = vars(parser.parse_args())
@@ -75,12 +75,14 @@ def main():
     # fit weighted multinomial logistic regression with elastic net penalty
     if fit:
         print("Fitting model...")
-        elastic_net = ElasticNet(sw)
-        elastic_net.fit_elastic_net()
-    # plot window frequencies of all subsets
-    window_plot = WindowPlot(sw, colors)
+        en = ElasticNet(sw)
+        en.fit_elastic_net()
+        print(f"Model is in {en.model_output_path}")
+    # generate all plots
+    wp = WindowPlot(sw, colors)
     print("Rendering plots...")
-    window_plot.make_plots()
+    wp.make_plots()
+    print(f"Plots are in {wp.plots_path}")
 
 
 if __name__ == "__main__":
