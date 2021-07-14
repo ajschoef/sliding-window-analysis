@@ -1,17 +1,16 @@
 import numpy as np
 import pandas as pd
-import warnings
 from pathlib import Path
 
 
 class SlidingWindow:
 
-    def __init__(self, path_to_data, target, window_size, cutoff, stride=1):
+    def __init__(self, path_to_data, target, window_size, n_largest, stride=1):
         ###### parameters ######
         self.path_to_data = Path(path_to_data)
         self.target = np.asarray(list(target))
         self.window_size = window_size
-        self.cutoff = cutoff
+        self.n_largest = n_largest
         self.stride = stride
         ###### data ######
         self.frequencies = None
@@ -117,35 +116,33 @@ class SlidingWindow:
         self.window_data['variance'] = self.freq_window_variance()
         self.window_data['std'] = self.freq_window_std()
         self.window_data.columns = [
-            'position', 'subset', 'window_mean', 'variance', 'std']
+            'window', 'subset', 'window_mean', 'window_variance', 'window_std']
         self.window_data.to_csv(
             f'{self.processed_data_path}window_data.csv', index=False)
 
-    def greater_than_cutoff(self, groupby_position):
-        is_cutoff = []
-        deltas = []
-        # calculate pairwise differences between means of subsets for each window
-        for _, group in groupby_position:
-            diff_matrix = abs(
-                group['window_mean'].values - group['window_mean'].values[:, None])
-            deltas.append(diff_matrix)
-            # if any of the differences in the means of subsets for a window is less than the cutoff, filter it out
-            is_cutoff.append(np.any(np.max(diff_matrix, axis=0) > self.cutoff))
-        return is_cutoff, deltas
+    def filter_data(self):
 
-    def filter_delta_cutoff(self):
-        groupby_position = self.window_data.groupby('position')
-        is_cutoff, deltas = self.greater_than_cutoff(groupby_position)
-        # if all values are below the user specified cutoff, then filter values below the 3rd quartile of subset differences instead
-        if (~np.array(is_cutoff)).all():
-            cutoff_copy = self.cutoff
-            self.cutoff = np.percentile(np.array(deltas).reshape(-1), 99)
-            is_cutoff, _ = self.greater_than_cutoff(groupby_position)
-            warnings.warn(
-                f"All values were below the cutoff ({cutoff_copy}). Using the 99th percentile ({np.round(self.cutoff, decimals=6)}) as the cutoff instead")
-        is_cutoff = pd.Series(np.repeat(is_cutoff, self.n_subset))
-        # remove values below delta cutoff
-        self.filtered_data = self.window_data[is_cutoff].copy()
+        # returns a symmetric matrix of the differences between group means
+        def difference_matrix(group):
+            return abs(group['window_mean'].values - group['window_mean'].values[:, None])
+
+        # get lower half of symmetric matrix (upper half is redundent) as a flattened array
+        def lower_tri_values(diff_matrix):
+            return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
+
+        # select the largest difference between the group means
+        def pairwise_max(group):
+            diff_matrix = difference_matrix(group)
+            diff_array = lower_tri_values(diff_matrix)
+            return np.max(diff_array)
+
+        groupby_window = self.window_data.groupby('window')
+        max_differences = [pairwise_max(group) for _, group in groupby_window]
+        # get windows with the n (user specified) largest differences between group means
+        indices = np.argpartition(
+            max_differences, -self.n_largest)[-self.n_largest:]
+        self.filtered_data = self.window_data[self.window_data['window'].isin(
+            indices)].copy()
         self.filtered_data.reset_index(inplace=True, drop=True)
         self.filtered_data.to_csv(
             f'{self.processed_data_path}window_data_filtered.csv', index=False)
@@ -179,5 +176,5 @@ class SlidingWindow:
         self.subset_sequences()
         self.subset_frequencies()
         self.make_dataframe()
-        self.filter_delta_cutoff()
+        self.filter_data()
         self.make_summary_stats()
