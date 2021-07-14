@@ -20,15 +20,15 @@ def main():
     parser.add_argument(
         "window_size",
         type=int,
-        help="The number of sequence positions (>= 1) to include in each window")
+        help="The number of sequence positions (integer >= 1) to include in each window")
     parser.add_argument(
-        "cutoff",
-        type=float,
-        help="Average window frequencies below the cutoff value [0-1] are filtered out")
+        "n_largest",
+        type=int,
+        help="Display n (integer >= 1) windows with the largest mean frequency difference between subsets")
     parser.add_argument(
         "--stride",
         type=int,
-        help="The number of sequence positions (>= 1) between adjacent windows (default = 1)")
+        help="The number of sequence positions (integer >= 1) between adjacent windows (default = 1)")
     parser.add_argument(
         "--fit",
         action='store_true',
@@ -43,12 +43,13 @@ def main():
     colors = args.pop('colors')
     fit = args.pop('fit')
 
+    pos_int_text = "must be a positive integer"
     if args['window_size'] < 1:
-        parser.error("'window_size' must be greater than 0")
-    if 0 > args['cutoff'] > 1:
-        parser.error("'cutoff' must be between 0 and 1 (inclusive)")
+        parser.error(f"'window_size' {pos_int_text}")
+    if args['n_largest'] < 1:
+        parser.error(f"'n_largest' {pos_int_text}")
     if args['stride'] and args['stride'] < 1:
-        parser.error("'stride' must be greater than 0")
+        parser.error(f"'stride' {pos_int_text}")
 
     def make_dir(dir_name):
         # makes a directory if it doesn't already exist
@@ -70,6 +71,7 @@ def main():
     # run data processing pipeline
     print("Processing data...")
     sw.run_pipeline()
+    print(f"Processed data is in {sw.processed_data_path}")
     # fit weighted multinomial logistic regression with elastic net penalty
     if fit:
         print("Fitting model...")
