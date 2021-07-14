@@ -153,3 +153,6 @@ sliding_window/.DS_Store
 # temporary setup instructions
 setup_instructions.rtf
 
+# in development
+sliding_window/menu.py
+
