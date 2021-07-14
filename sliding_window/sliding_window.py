@@ -173,6 +173,5 @@ class SlidingWindow:
         self.subset_sequences()
         self.subset_frequencies()
         self.make_window_data()
-        print(self.window_data)
         self.filter_data()
         self.make_summary_stats()
