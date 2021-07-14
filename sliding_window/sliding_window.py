@@ -142,7 +142,7 @@ class SlidingWindow:
         indices = np.argpartition(
             max_differences, -self.n_largest)[-self.n_largest:]
         self.filtered_data = self.window_data[self.window_data['window'].isin(
-            indices)].copy()
+            indices+1)].copy()
         self.filtered_data.reset_index(inplace=True, drop=True)
         self.filtered_data.to_csv(
             f'{self.processed_data_path}window_data_filtered.csv', index=False)
