@@ -6,20 +6,20 @@ from pathlib import Path
 class SlidingWindow:
 
     def __init__(self, path_to_data, target, window_size, n_largest, stride=1):
-        ###### parameters ######
+        # parameters
         self.path_to_data = Path(path_to_data)
         self.target = np.asarray(list(target))
         self.window_size = window_size
         self.n_largest = n_largest
         self.stride = stride
-        ###### data ######
+        # data
         self.frequencies = None
         self.groupby_subset = None
         self.window_data = None
         self.filtered_data = None
         self.stride_indices = None
         self.summary = []
-        ###### helper variables ######
+        # helper variables
         self.processed_data_path = 'results/processed_data/'
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
@@ -90,9 +90,8 @@ class SlidingWindow:
         self.frequencies = [self.window_frequencies(subset)
                             for subset in self.subset_sequences()]
         # concatenate subset frequencies and add subset column to dataframe
-        self.frequencies = pd.concat(
-            self.frequencies, keys=self.subset_names).reset_index()
-        self.frequencies.drop('level_1', axis=1, inplace=True)
+        self.frequencies = pd.concat(self.frequencies, keys=self.subset_names)
+        self.frequencies.reset_index().drop('level_1', axis=1, inplace=True)
         self.frequencies.rename(columns={'level_0': 'subset'}, inplace=True)
         # rename columns so they match the original positions in their sequence before filtering by stride
         col_names = {col: idx for idx, col in zip(
@@ -102,45 +101,36 @@ class SlidingWindow:
             f'{self.processed_data_path}window_frequencies.csv', index=False)
         self.groupby_subset = self.frequencies.groupby('subset')
 
-    def freq_window_means(self):
+    def make_window_data(self):
         self.window_data = self.groupby_subset.mean().T.stack().reset_index()
-
-    def freq_window_variance(self):
-        return self.groupby_subset.var().T.stack().reset_index()[0]
-
-    def freq_window_std(self):
-        return self.groupby_subset.std().T.stack().reset_index()[0]
-
-    def make_dataframe(self):
-        self.freq_window_means()
-        self.window_data['variance'] = self.freq_window_variance()
-        self.window_data['std'] = self.freq_window_std()
+        variance = self.groupby_subset.var().to_numpy().flatten()
+        std = np.sqrt(variance)
+        self.window_data['variance'] = variance
+        self.window_data['std'] = std
         self.window_data.columns = [
             'window', 'subset', 'window_mean', 'window_variance', 'window_std']
         self.window_data.to_csv(
             f'{self.processed_data_path}window_data.csv', index=False)
 
+    # returns a symmetric matrix of the differences between group means for a window
+    def difference_matrix(self, group):
+        return abs(group['window_mean'].values - group['window_mean'].values[:, None])
+
+    # returns lower half of symmetric matrix (upper half is redundent) as a flattened array
+    def lower_tri_values(self, diff_matrix):
+        return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
+
+    # returns the largest difference between the group means for a window
+    def pairwise_max(self, group):
+        diff_matrix = self.difference_matrix(group)
+        diff_array = self.lower_tri_values(diff_matrix)
+        return np.max(diff_array)
+
     def filter_data(self):
-
-        # returns a symmetric matrix of the differences between group means
-        def difference_matrix(group):
-            return abs(group['window_mean'].values - group['window_mean'].values[:, None])
-
-        # get lower half of symmetric matrix (upper half is redundent) as a flattened array
-        def lower_tri_values(diff_matrix):
-            return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
-
-        # select the largest difference between the group means
-        def pairwise_max(group):
-            diff_matrix = difference_matrix(group)
-            diff_array = lower_tri_values(diff_matrix)
-            return np.max(diff_array)
-
         groupby_window = self.window_data.groupby('window')
-        max_differences = [pairwise_max(group) for _, group in groupby_window]
+        max_diff = [self.pairwise_max(group) for _, group in groupby_window]
         # get windows with the n (user specified) largest differences between group means
-        indices = np.argpartition(
-            max_differences, -self.n_largest)[-self.n_largest:]
+        indices = np.argpartition(max_diff, -self.n_largest)[-self.n_largest:]
         self.filtered_data = self.window_data[self.window_data['window'].isin(
             indices+1)].copy()
         self.filtered_data.reset_index(inplace=True, drop=True)
@@ -175,6 +165,6 @@ class SlidingWindow:
     def run_pipeline(self):
         self.subset_sequences()
         self.subset_frequencies()
-        self.make_dataframe()
+        self.make_window_data()
         self.filter_data()
         self.make_summary_stats()
