@@ -90,9 +90,12 @@ class SlidingWindow:
         self.frequencies = [self.window_frequencies(subset)
                             for subset in self.subset_sequences()]
         # concatenate subset frequencies and add subset column to dataframe
-        self.frequencies = pd.concat(self.frequencies, keys=self.subset_names)
-        self.frequencies.reset_index().drop('level_1', axis=1, inplace=True)
-        self.frequencies.rename(columns={'level_0': 'subset'}, inplace=True)
+        self.frequencies = (
+            pd.concat(self.frequencies, keys=self.subset_names)
+            .reset_index()
+            .drop('level_1', axis=1)
+            .rename(columns={'level_0': 'subset'})
+        )
         # rename columns so they match the original positions in their sequence before filtering by stride
         col_names = {col: idx for idx, col in zip(
             self.stride_indices, self.frequencies.columns[2:])}
@@ -131,9 +134,11 @@ class SlidingWindow:
         max_diff = [self.pairwise_max(group) for _, group in groupby_window]
         # get windows with the n (user specified) largest differences between group means
         indices = np.argpartition(max_diff, -self.n_largest)[-self.n_largest:]
-        self.filtered_data = self.window_data[self.window_data['window'].isin(
-            indices+1)].copy()
-        self.filtered_data.reset_index(inplace=True, drop=True)
+        self.filtered_data = (
+            self.window_data[self.window_data['window'].isin(indices+1)]
+            .copy()
+            .reset_index(drop=True)
+        )
         self.filtered_data.to_csv(
             f'{self.processed_data_path}window_data_filtered.csv', index=False)
 
@@ -158,13 +163,16 @@ class SlidingWindow:
             np.var(subset.iloc[:, 2:].values) for subset in subsets]
         self.summary['frequency_std'] = np.sqrt(
             self.summary['frequency_variance'])
-        self.summary.reset_index(inplace=True)
-        self.summary.to_csv(
-            f'{self.processed_data_path}summary_stats.csv', index=False)
+        self.summary = (
+            self.summary
+            .reset_index()
+            .to_csv(f'{self.processed_data_path}summary_stats.csv', index=False)
+        )
 
     def run_pipeline(self):
         self.subset_sequences()
         self.subset_frequencies()
         self.make_window_data()
+        print(self.window_data)
         self.filter_data()
         self.make_summary_stats()
