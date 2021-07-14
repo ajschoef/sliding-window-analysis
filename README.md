@@ -22,7 +22,7 @@ For documentation on the program's arguments, run
 
 To excute the program, pass the arguments listed below.
 
-    docker-compose run app path_to_data target window_size cutoff --stride --fit --colors
+    docker-compose run app path_to_data target window_size n_largest --stride --fit --colors
 
 The path_to_data argument should be the same as the one provided in the docker-compose build command. After running this command, the program's output should now be in the generated "results" subdirectory.
 
@@ -30,12 +30,12 @@ The path_to_data argument should be the same as the one provided in the docker-c
 
 With a single target and no optional arguments
 
-    docker-compose run app example/path/ G 20 0.15
+    docker-compose run app example/path/ G 20 50
 
 With multiple targets and optional window `--stride` and `--colors` arguments
 
-    docker-compose run app example/path/ YRV 10 0.0 --stride 10 --colors blue green yellow
+    docker-compose run app example/path/ YRV 10 20 --stride 10 --colors blue green yellow
 
 If the optional `--fit` argument is passed, a weighted multinomial logistic regression with an [elastic net](https://en.wikipedia.org/wiki/Elastic_net_regularization) penalty is fit to the data and the resulting model is saved to the results folder. Elastic net hyperparameters are chosen via [cross-validation](<https://en.wikipedia.org/wiki/Cross-validation_(statistics)>)
 
-    docker-compose run app example/path/ R 15 0.2 --fit
+    docker-compose run app example/path/ R 15 50 --fit
