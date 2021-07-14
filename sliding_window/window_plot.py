@@ -27,10 +27,10 @@ class WindowPlot:
         df['x_ticks'] = np.repeat(window_range, self.sw.n_subset)
 
     def get_min(self, df):
-        return df.groupby('position').min()['window_mean']
+        return df.groupby('window').min()['window_mean']
 
     def get_max(self, df):
-        return df.groupby('position').max()['window_mean']
+        return df.groupby('window').max()['window_mean']
 
     def save_plot(self, file_name):
         plt.savefig(f'{self.plots_path}{file_name}.png')
@@ -73,11 +73,9 @@ class WindowPlot:
 
     def dot_plot(self, df, window_range, axes=None, save_plot=True, show=True):
         plt.rcParams['figure.figsize'] = [15, 6]
-        title = f"Target{'s' if self.sw.target.size > 1 else ''}: {', '.join(self.sw.target)}"
-        x_label = f'Window position (window size = {self.sw.window_size})'
+        label = "Window"
         if not axes:
-            title += f'\t(window size = {self.sw.window_size})'.expandtabs()
-            x_label = f"Filtered window position (subset difference cutoff = {np.round_(self.sw.cutoff, decimals=6)})"
+            label = f"Filtered window"
         axes = sns.scatterplot(
             data=df,
             x='x_ticks',
@@ -86,10 +84,10 @@ class WindowPlot:
             palette=self.colors,
             ax=axes)
         axes.legend(title='Subset')
-        _, y_max = axes.get_ylim()
         min_values = self.get_min(df)
-        plt.ylim((min_values.min(), y_max))
         max_values = self.get_max(df)
+        _, y_max = axes.get_ylim()
+        plt.ylim((min_values.min(), y_max))
         self.alternating_vlines(window_range, max_values)
         axes.tick_params(
             axis='x',
@@ -97,8 +95,10 @@ class WindowPlot:
             labelsize=6,
             labelrotation=-90)
         axes.set_xticks(window_range)
-        axes.set_xticklabels(df['position'][::self.sw.n_subset])
+        axes.set_xticklabels(df['window'][::self.sw.n_subset])
+        title = f"Target{'s' if self.sw.target.size > 1 else ''}: {', '.join(self.sw.target)}"
         plt.title(title)
+        x_label = f'{label} position (window size = {self.sw.window_size})'
         plt.xlabel(x_label, labelpad=10)
         plt.ylabel('Mean window frequency')
         plt.tight_layout()
@@ -122,7 +122,6 @@ class WindowPlot:
         plt.tight_layout()
 
     def sliding_plot(self, plot_scroll_size):
-        # setting Plot and Axis variables as subplots() function returns tuple(fig, ax)
         fig, axes = plt.subplots(2)
         self.dot_plot(self.sw.window_data, self.unfiltered_range,
                       axes=axes[1], save_plot=False, show=False)
@@ -131,13 +130,13 @@ class WindowPlot:
         axes[1].set(ylabel=None)
         axes[0].set(
             title=f"Target{'s' if self.sw.target.size > 1 else ''}: {', '.join(self.sw.target)}")
-        plt.subplots_adjust(left=0.15, right=0.9, bottom=0.15, top=0.90)
+        plt.subplots_adjust(left=0.15, right=0.9, bottom=0.2, top=0.90)
         # add common y label
         fig.text(0.05, 0.5, 'Mean window frequency', va='center',
                  ha='center', rotation='vertical')
         # set the axis and slider position in the plot
         axis_pos = plt.axes([0.15, 0.01, 0.75, 0.03], facecolor='White')
-        slider_pos = Slider(axis_pos, 'Position', 0.0,
+        slider_pos = Slider(axis_pos, 'Window', 0.0,
                             self.num_windows(self.sw.window_data))
         # update() function to change the graph when the slider is in use
         y_min, y_max = axes[1].get_ylim()
