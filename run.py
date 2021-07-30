@@ -1,6 +1,5 @@
 from sliding_window.sliding_window import SlidingWindow
 from sliding_window.window_plot import WindowPlot
-from sliding_window.model import ElasticNet
 import argparse
 import os
 
@@ -30,10 +29,6 @@ def main():
         type=int,
         help="The number of sequence positions (integer >= 1) between adjacent windows (default = 1)")
     parser.add_argument(
-        "--fit",
-        action='store_true',
-        help="A multinomial logistic regression with elastic net penalty model is fit and saved to: results/elastic_net.pickle")
-    parser.add_argument(
         "--colors",
         nargs='*',
         help="The colors of each subset in the comparision plots. Can be any color or code accepted by Matplotlib")
@@ -41,7 +36,6 @@ def main():
     # parse arguments and validate them
     args = vars(parser.parse_args())
     colors = args.pop('colors')
-    fit = args.pop('fit')
 
     pos_int_text = "must be a positive integer"
     if args['window_size'] < 1:
@@ -57,10 +51,9 @@ def main():
             os.makedirs(dir_name)
 
     # make results, plots, processed data, and model output directories
-    make_dir('results')
-    make_dir('results/plots')
-    make_dir('results/processed_data')
-    make_dir('results/model_output')
+    directories = ['', 'plots', 'processed_data']
+    for dir_name in directories:
+        make_dir(f'results/{dir_name}')
 
     # create sliding window instance
     sw = SlidingWindow(**args)
@@ -72,12 +65,6 @@ def main():
     print("Processing data...")
     sw.run_pipeline()
     print(f"Processed data is in {sw.processed_data_path}")
-    # fit weighted multinomial logistic regression with elastic net penalty
-    if fit:
-        print("Fitting model...")
-        en = ElasticNet(sw)
-        en.fit_elastic_net()
-        print(f"Model is in {en.model_output_path}")
     # generate all plots
     wp = WindowPlot(sw, colors)
     print("Rendering plots...")
