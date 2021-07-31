@@ -110,7 +110,7 @@ class WindowPlot:
             palette=self.colors,
             linewidth=0,
             ax=axes,
-            alpha=0.5)
+            alpha=0.7)
         axes.legend(title='Subset')
         axes.set(xlabel=None)
         axes.set(ylabel=None)
