@@ -15,8 +15,8 @@ class SlidingWindow:
         # data
         self.frequencies = None
         self.window_data = None
-        self.filtered_data = None
-        self.summary = []
+        self.window_data_filtered = None
+        self.summary_stats = []
         # helper variables
         self.processed_data_path = 'results/processed_data/'
         self.fasta_extensions = (
@@ -28,9 +28,6 @@ class SlidingWindow:
                                  if self.is_fasta(f)]
         self.n_subset = len(self.subset_names)
 
-    def is_fasta(self, file):
-        return file.name.lower().endswith(self.fasta_extensions)
-
     def seq_to_np_array(self, sequences):
         # convert sequence strings to 2d array
         return np.asarray(list(map(list, sequences)))
@@ -38,6 +35,15 @@ class SlidingWindow:
     def to_boolean(self, sequence_arrays):
         # convert sequence arrays to boolean values indicating target presence
         return np.where(np.isin(sequence_arrays, self.target), 1, 0)
+
+    def subset_summary_stats(self, is_target):
+        alignment_length = is_target.shape[1]
+        seq_count = is_target.shape[0]
+        target_count = np.sum(is_target)
+        proportion = np.mean(is_target)
+        return pd.DataFrame([[alignment_length, seq_count, target_count, proportion]],
+                            columns=['alignment_length', 'sequence_count', 'target_count',
+                                     'target_proportion'])
 
     def window_counts(self, sequence):
         # convolution weights; vector of ones with length of window size
@@ -51,16 +57,36 @@ class SlidingWindow:
     def filter_stride(self, sequences):
         return sequences[:, 0::self.stride]
 
+    def add_header(self, header, window_frequencies):
+        header = pd.Series(header, name='header')
+        columns = range(1, window_frequencies.shape[1] + 1)
+        window_frequencies = pd.DataFrame(
+            window_frequencies, columns=columns)
+        return pd.concat([header, window_frequencies], axis=1)
+
+    def window_frequencies(self, sequences):
+        header, sequences = zip(*sequences)
+        sequences_arrays = self.seq_to_np_array(sequences)
+        is_target = self.to_boolean(sequences_arrays)
+        self.summary_stats.append(self.subset_summary_stats(is_target))
+        window_counts = self.sequence_window_counts(is_target)
+        window_counts = self.filter_stride(window_counts)
+        window_frequencies = window_counts / self.window_size
+        return self.add_header(header, window_frequencies)
+
     # read and return raw FASTA file text
     def read_fasta(self, infile):
         with open(infile, "r") as f:
             return f.read()
 
+    def is_fasta(self, file):
+        return file.name.lower().endswith(self.fasta_extensions)
+
     # returns a tuble containing the sequence header and the sequence itself
     def separate_header(self, sequence):
         return sequence[0], ''.join(sequence[1:])
 
-    # returns list tuples containing the headers and sequences from a FASTA file
+    # returns a list of tuples containing a header and sequence for each sequence in a FASTA file
     def process_fasta(self, file_text):
         sequences = file_text.split('>')[1:]
         sequences = [sequence.split('\n') for sequence in sequences]
@@ -72,28 +98,14 @@ class SlidingWindow:
                       if self.is_fasta(f)]
         return [self.process_fasta(fasta) for fasta in fastas]
 
-    def add_header(self, header, window_frequencies):
-        return pd.concat([pd.Series(header, name='header'),
-                          pd.DataFrame(window_frequencies)], axis=1)
-
-    def window_frequencies(self, sequences):
-        header, sequences = zip(*sequences)
-        sequences_arrays = self.seq_to_np_array(sequences)
-        is_target = self.to_boolean(sequences_arrays)
-        self.summary.append(self.subset_summary_stats(is_target))
-        window_counts = self.sequence_window_counts(is_target)
-        window_counts = self.filter_stride(window_counts)
-        window_frequencies = window_counts / self.window_size
-        return self.add_header(header, window_frequencies)
-
     # calculate window frequencies for each subset
-    def make_frequencies(self):
+    def subset_frequencies(self):
         return [self.window_frequencies(subset) for subset in self.subset_sequences()]
 
     # concatenate subset frequencies and add subset column to dataframe
-    def subset_frequencies(self):
+    def make_frequencies(self):
         self.frequencies = (
-            pd.concat(self.make_frequencies(), keys=self.subset_names)
+            pd.concat(self.subset_frequencies(), keys=self.subset_names)
             .reset_index()
             .drop('level_1', axis=1)
             .rename(columns={'level_0': 'subset'})
@@ -125,7 +137,7 @@ class SlidingWindow:
             .drop(labels='index', axis=1)
         )
 
-    # returns the lower half of symmetric matrix (upper half is redundent) as a flattened array
+    # returns the lower half of a symmetric matrix (upper half is redundent) as a flattened array
     def lower_tri_values(self, diff_matrix):
         return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
 
@@ -137,9 +149,10 @@ class SlidingWindow:
     # filter windows with the n (user specified) largest differences between group means
     def make_filtered_data(self, deltas):
         maxs = [self.pairwise_abs_max(delta) for delta in deltas]
-        indices = np.argpartition(maxs, -self.n_largest)[-self.n_largest:]
+        indices = np.argpartition(
+            maxs, -self.n_largest)[-self.n_largest:] + 1
         mask = self.window_data['window'].isin(indices)
-        self.filtered_data = (
+        self.window_data_filtered = (
             self.window_data[mask]
             .copy()
             .reset_index(drop=True)
@@ -159,28 +172,19 @@ class SlidingWindow:
         self.concat_deltas(deltas, groupby_window)
         self.make_filtered_data(deltas)
 
-    def subset_summary_stats(self, is_target):
-        alignment_length = is_target.shape[1]
-        seq_count = is_target.shape[0]
-        target_count = np.sum(is_target)
-        proportion = np.mean(is_target)
-        return pd.DataFrame([[alignment_length, seq_count, target_count, proportion]],
-                            columns=['alignment_length', 'sequence_count', 'target_count',
-                                     'target_proportion'])
-
     def make_summary_stats(self):
-        self.summary = pd.concat(self.summary)
-        self.summary.index = self.subset_names
-        self.summary.index.name = 'subset'
+        self.summary_stats = pd.concat(self.summary_stats)
+        self.summary_stats.index = self.subset_names
+        self.summary_stats.index.name = 'subset'
         subsets = [self.frequencies.loc[self.frequencies['subset'] == subset]
                    for subset in self.subset_names]
-        self.summary['frequency_mean'] = [
+        self.summary_stats['frequency_mean'] = [
             np.mean(subset.iloc[:, 2:].values) for subset in subsets]
-        self.summary['frequency_variance'] = [
+        self.summary_stats['frequency_variance'] = [
             np.var(subset.iloc[:, 2:].values) for subset in subsets]
-        self.summary['frequency_std'] = np.sqrt(
-            self.summary['frequency_variance'])
-        self.summary.reset_index(inplace=True)
+        self.summary_stats['frequency_std'] = np.sqrt(
+            self.summary_stats['frequency_variance'])
+        self.summary_stats.reset_index(inplace=True)
 
     def save_csv(self, df, filename):
         df.to_csv(f'{self.processed_data_path}{filename}.csv', index=False)
@@ -188,12 +192,11 @@ class SlidingWindow:
     def save_data(self):
         self.save_csv(self.frequencies, 'window_frequencies')
         self.save_csv(self.window_data, 'window_data')
-        self.save_csv(self.filtered_data, 'window_data_filtered')
-        self.save_csv(self.summary, 'summary_stats')
+        self.save_csv(self.window_data_filtered, 'window_data_filtered')
+        self.save_csv(self.summary_stats, 'summary_stats')
 
     def run_pipeline(self):
-        self.subset_sequences()
-        self.subset_frequencies()
+        self.make_frequencies()
         self.make_window_data()
         self.make_summary_stats()
         self.save_data()

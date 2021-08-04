@@ -45,12 +45,12 @@ def main():
     if args['stride'] and args['stride'] < 1:
         parser.error(f"'stride' {pos_int_text}")
 
+    # makes a directory if it doesn't already exist
     def make_dir(dir_name):
-        # makes a directory if it doesn't already exist
         if not os.path.exists(dir_name):
             os.makedirs(dir_name)
 
-    # make results, plots, processed data, and model output directories
+    # make results, plots, processed data directories
     directories = ['', 'plots', 'processed_data']
     for dir_name in directories:
         make_dir(f'results/{dir_name}')

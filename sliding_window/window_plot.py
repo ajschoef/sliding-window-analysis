@@ -11,10 +11,11 @@ class WindowPlot:
         self.colors = colors
         #### helper variables ####
         self.plots_path = 'results/plots/'
-        self.filtered_range = self.calc_window_range(self.sw.filtered_data)
+        self.filtered_range = self.calc_window_range(
+            self.sw.window_data_filtered)
         self.unfiltered_range = self.calc_window_range(self.sw.window_data)
         # add x-axis tick positions to data
-        self.add_x_ticks(self.sw.filtered_data, self.filtered_range)
+        self.add_x_ticks(self.sw.window_data_filtered, self.filtered_range)
         self.add_x_ticks(self.sw.window_data, self.unfiltered_range)
 
     def num_windows(self, df):
@@ -44,7 +45,7 @@ class WindowPlot:
             kind="ecdf",
             palette=self.colors)
         plot._legend.set_title('Subset')
-        plt.xlabel('Mean window frequency')
+        plt.xlabel('Mean target frequency')
         plt.tight_layout()
         self.save_plot('ecdf_plot')
         plt.show()
@@ -59,7 +60,7 @@ class WindowPlot:
             common_norm=False,
             palette=self.colors).set(xlim=(0, max_freq))
         plot._legend.set_title('Subset')
-        plt.xlabel('Mean window frequency')
+        plt.xlabel('Mean target frequency')
         plt.tight_layout()
         self.save_plot('kde_plot')
         plt.show()
@@ -94,10 +95,10 @@ class WindowPlot:
         plt.title(title)
         x_label = f'{label} position (window size = {self.sw.window_size})'
         plt.xlabel(x_label, labelpad=10)
-        plt.ylabel('Mean window frequency')
+        plt.ylabel('Mean target frequency')
         plt.tight_layout()
         if save_plot:
-            self.save_plot('dot_plot')
+            self.save_plot('dot_plot_filtered')
         if show:
             plt.show()
 
@@ -127,7 +128,7 @@ class WindowPlot:
             title=f"Target{'s' if self.sw.target.size > 1 else ''}: {', '.join(self.sw.target)}")
         plt.subplots_adjust(left=0.15, right=0.9, bottom=0.2, top=0.90)
         # add common y label
-        fig.text(0.05, 0.5, 'Mean window frequency', va='center',
+        fig.text(0.05, 0.5, 'Mean target frequency', va='center',
                  ha='center', rotation='vertical')
         # set the axis and slider position in the plot
         axis_pos = plt.axes([0.15, 0.01, 0.75, 0.03], facecolor='White')
@@ -148,6 +149,6 @@ class WindowPlot:
 
     def make_plots(self):
         self.sliding_plot(plot_scroll_size=50)
-        self.dot_plot(self.sw.filtered_data, self.filtered_range)
+        self.dot_plot(self.sw.window_data_filtered, self.filtered_range)
         self.kde_plot()
         self.ecdf_plot()

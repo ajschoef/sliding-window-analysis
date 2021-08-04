@@ -6,7 +6,7 @@
 
 Download or clone this repository.
 
-Download and install [Docker](https://www.docker.com/).
+Download and install [Docker](https://www.docker.com/products/docker-desktop).
 
 Open a command line interface and change the working directory to the sliding-window-analysis directory. For example, in Linux/Unix
 
@@ -28,14 +28,10 @@ The path_to_data argument should be the same as the one provided in the docker-c
 
 ### Examples
 
-With a single target and no optional arguments
+With a single `target`, G, and no optional arguments
 
     docker-compose run app example/path/ G 20 50
 
-With multiple targets and optional window `--stride` and `--colors` arguments
+With multiple targets (T, C, A) and the optional `--stride` and `--colors` arguments
 
-    docker-compose run app example/path/ YRV 10 20 --stride 10 --colors blue green yellow
-
-If the optional `--fit` argument is passed, a weighted multinomial logistic regression with an [elastic net](https://en.wikipedia.org/wiki/Elastic_net_regularization) penalty is fit to the data and the resulting model is saved to the results folder. Elastic net hyperparameters are chosen via [cross-validation](<https://en.wikipedia.org/wiki/Cross-validation_(statistics)>)
-
-    docker-compose run app example/path/ R 15 50 --fit
+    docker-compose run app example/path/ TCA 10 20 --stride 10 --colors blue green yellow
