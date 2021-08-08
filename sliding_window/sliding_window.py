@@ -22,20 +22,34 @@ class SlidingWindow:
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
         # generate subset labels from filenames
-        with self.path_to_data as entries:
-            self.subset_names = [f.name.split('.')[0]
-                                 for f in entries.iterdir()
-                                 if self.is_fasta(f)]
+        self.subset_names = self.apply_if_fasta(self.make_subset_name)
         self.n_subset = len(self.subset_names)
 
+    def make_subset_name(self, file):
+        return file.name.split('.')[0]
+
+    def is_fasta(self, file):
+        return file.name.lower().endswith(self.fasta_extensions)
+
+    def apply_if_fasta(self, f):
+        with self.path_to_data as entries:
+            return [f(file) for file in entries.iterdir() if self.is_fasta(file)]
+
+    # converts multiple alignment strings to a 2d numpy array
     def seq_to_np_array(self, sequences):
-        # convert sequence strings to 2d array
         return np.asarray(list(map(list, sequences)))
 
+    # convert alignment arrays to boolean values indicating target presence
     def to_boolean(self, sequence_arrays):
-        # convert sequence arrays to boolean values indicating target presence
         return np.where(np.isin(sequence_arrays, self.target), 1, 0)
 
+    def window_counts(self, sequence):
+        # convolution weights; vector of ones with length of window size
+        weights = np.ones(self.window_size, dtype=int)
+        # calculate sum of boolean values for each window in a sequence
+        return np.convolve(sequence, weights, mode='valid')
+
+    # generates summary statistics aggregated across all alighments for a single subset
     def subset_summary_stats(self, is_target):
         alignment_length = is_target.shape[1]
         seq_count = is_target.shape[0]
@@ -44,12 +58,6 @@ class SlidingWindow:
         return pd.DataFrame([[alignment_length, seq_count, target_count, proportion]],
                             columns=['alignment_length', 'sequence_count', 'target_count',
                                      'target_proportion'])
-
-    def window_counts(self, sequence):
-        # convolution weights; vector of ones with length of window size
-        weights = np.ones(self.window_size, dtype=int)
-        # calculate sum of boolean values for each window in a sequence
-        return np.convolve(sequence, weights, mode='valid')
 
     def sequence_window_counts(self, is_target):
         return np.asarray([self.window_counts(seq) for seq in is_target])
@@ -79,9 +87,6 @@ class SlidingWindow:
         with open(infile, "r") as f:
             return f.read()
 
-    def is_fasta(self, file):
-        return file.name.lower().endswith(self.fasta_extensions)
-
     # returns a tuble containing the sequence header and the sequence itself
     def separate_header(self, sequence):
         return sequence[0], ''.join(sequence[1:])
@@ -93,9 +98,7 @@ class SlidingWindow:
         return [self.separate_header(sequence) for sequence in sequences]
 
     def subset_sequences(self):
-        with self.path_to_data as entries:
-            fastas = [self.read_fasta(f) for f in entries.iterdir()
-                      if self.is_fasta(f)]
+        fastas = self.apply_if_fasta(self.read_fasta)
         return [self.process_fasta(fasta) for fasta in fastas]
 
     # calculate window frequencies for each subset
@@ -111,67 +114,6 @@ class SlidingWindow:
             .rename(columns={'level_0': 'subset'})
         )
 
-    # returns a symmetric matrix of the differences between group means for a window
-    def delta_matrix(self, group):
-        return group['window_mean'].values - group['window_mean'].values[:, None]
-
-    def make_delta_names(self):
-        delta_names = self.subset_names.copy()
-        delta_names.sort()
-        return [subset.lower() + '_delta' for subset in delta_names]
-
-    def make_deltas(self, groupby_window):
-        return [self.delta_matrix(group) for _, group in groupby_window]
-
-    def append_deltas(self, group, diff_matrix, names):
-        delta_matrix = pd.DataFrame(diff_matrix, columns=names)
-        return pd.concat([group.reset_index(), delta_matrix], axis=1)
-
-    def concat_deltas(self, deltas, groupby_window):
-        delta_names = self.make_delta_names()
-        self.window_data = [self.append_deltas(group[1], diff_matrix, delta_names)
-                            for diff_matrix, group in zip(deltas, groupby_window)]
-        self.window_data = (
-            pd.concat(self.window_data)
-            .reset_index(drop=True)
-            .drop(labels='index', axis=1)
-        )
-
-    # returns the lower half of a symmetric matrix (upper half is redundent) as a flattened array
-    def lower_tri_values(self, diff_matrix):
-        return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
-
-    # returns the largest difference between the group means for a window
-    def pairwise_abs_max(self, diff_matrix):
-        diff_array = self.lower_tri_values(diff_matrix)
-        return np.max(abs(diff_array))
-
-    # filter windows with the n (user specified) largest differences between group means
-    def make_filtered_data(self, deltas):
-        maxs = [self.pairwise_abs_max(delta) for delta in deltas]
-        indices = np.argpartition(
-            maxs, -self.n_largest)[-self.n_largest:] + 1
-        mask = self.window_data['window'].isin(indices)
-        self.window_data_filtered = (
-            self.window_data[mask]
-            .copy()
-            .reset_index(drop=True)
-        )
-
-    def make_window_data(self):
-        groupby_subset = self.frequencies.groupby('subset')
-        self.window_data = groupby_subset.mean().T.stack().reset_index()
-        variance = groupby_subset.var().T.stack().reset_index(drop=True)
-        std = np.sqrt(variance)
-        self.window_data['variance'] = variance
-        self.window_data['std'] = std
-        self.window_data.columns = [
-            'window', 'subset', 'window_mean', 'window_variance', 'window_std']
-        groupby_window = self.window_data.groupby('window')
-        deltas = self.make_deltas(groupby_window)
-        self.concat_deltas(deltas, groupby_window)
-        self.make_filtered_data(deltas)
-
     def make_summary_stats(self):
         self.summary_stats = pd.concat(self.summary_stats)
         self.summary_stats.index = self.subset_names
@@ -186,6 +128,99 @@ class SlidingWindow:
             self.summary_stats['frequency_variance'])
         self.summary_stats.reset_index(inplace=True)
 
+    def make_column_names(self, postfix):
+        delta_names = self.subset_names.copy()
+        delta_names.sort()
+        return [subset.lower() + postfix for subset in delta_names]
+
+    # returns a symmetric matrix of the differences between group means for a window
+    def delta_matrix(self, group):
+        return group['window_mean'].values - group['window_mean'].values[:, None]
+
+    def calculate_deltas(self, groupby_window):
+        return [self.delta_matrix(group) for _, group in groupby_window]
+
+    def concat_dataframes(self, deltas, effect_sizes):
+        self.window_data = pd.concat(
+            [self.window_data, deltas, effect_sizes], axis=1)
+
+    # returns the lower half of a symmetric matrix (upper half is redundent) as a flattened array
+    def lower_tri_values(self, diff_matrix):
+        return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
+
+    # returns the largest difference between the group means for a window
+    def pairwise_abs_max(self, diff_matrix):
+        diff_array = self.lower_tri_values(diff_matrix)
+        return np.max(abs(diff_array))
+
+    def scale_variance(self, sample_size, variance):
+        return (sample_size - 1) * variance
+
+    # returns a 2d array of all pairwise sums of a vector's elements
+    def pairwise_sum(self, vector):
+        return vector.values + vector.values[:, None]
+
+    def pool_std(self, variance, sample_size_sums):
+        variance_sums = self.pairwise_sum(variance)
+        # FIXME check for division by zero
+        return np.sqrt(variance_sums / (sample_size_sums - 2))
+
+    def calc_cohens_d(self, deltas, pooled_std):
+        # FIXME check for division by zero
+        return deltas / pooled_std
+
+    def correct_bias(self, effect_size, n_sums):
+        denominator = (4 * n_sums) - 9
+        # FIXME check for division by zero
+        correction_factor = 1 - (3 / denominator)
+        return correction_factor * effect_size
+
+    def hedges_g(self, delta, group, sample_size, sample_size_sums):
+        variance = group['window_variance'].values
+        scaled_variance = self.scale_variance(sample_size, variance)
+        pooled_std = self.pool_std(scaled_variance, sample_size_sums)
+        cohens_d = self.calc_cohens_d(delta, pooled_std)
+        return self.correct_bias(cohens_d, sample_size_sums)
+
+    def calculate_effect_sizes(self, deltas, groupby_window, stats):
+        sample_size = stats['alignment_length']
+        sample_size_sums = self.pairwise_sum(sample_size)
+        return [self.hedges_g(delta, group[1], sample_size, sample_size_sums)
+                for delta, group in zip(deltas, groupby_window)]
+
+    # filter windows with the n (user specified) largest differences between group means
+    def make_filtered_data(self, deltas):
+        max_deltas = [self.pairwise_abs_max(delta) for delta in deltas]
+        indices = np.argpartition(
+            max_deltas, -self.n_largest)[-self.n_largest:] + 1
+        mask = self.window_data['window'].isin(indices)
+        self.window_data_filtered = (
+            self.window_data[mask]
+            .copy()
+            .reset_index(drop=True)
+        )
+
+    def make_window_data(self):
+        groupby_subset = self.frequencies.groupby('subset')
+        self.window_data = groupby_subset.mean().T.stack().reset_index()
+        variance = groupby_subset.var().T.stack().reset_index(drop=True)
+        self.window_data['variance'] = variance
+        std = np.sqrt(variance)
+        self.window_data['std'] = std
+        self.window_data.columns = [
+            'window', 'subset', 'window_mean', 'window_variance', 'window_std']
+        groupby_window = self.window_data.groupby('window')
+        deltas = self.calculate_deltas(groupby_window)
+        deltas_temp = deltas.copy()
+        effect_sizes = self.calculate_effect_sizes(
+            deltas, groupby_window, self.summary_stats)
+        deltas = pd.DataFrame(np.concatenate(
+            deltas), columns=self.make_column_names('_delta'))
+        effect_sizes = pd.DataFrame(np.concatenate(
+            effect_sizes), columns=self.make_column_names('_hedges_g'))
+        self.concat_dataframes(deltas, effect_sizes)
+        self.make_filtered_data(deltas_temp)
+
     def save_csv(self, df, filename):
         df.to_csv(f'{self.processed_data_path}{filename}.csv', index=False)
 
@@ -197,6 +232,6 @@ class SlidingWindow:
 
     def run_pipeline(self):
         self.make_frequencies()
-        self.make_window_data()
         self.make_summary_stats()
+        self.make_window_data()
         self.save_data()
