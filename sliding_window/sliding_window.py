@@ -160,32 +160,36 @@ class SlidingWindow:
     def pairwise_sum(self, vector):
         return vector.values + vector.values[:, None]
 
+    # check for division by zero and replace with 0 if encountered
+    def safe_zero_divide(self, dividend, divisor):
+        dividend = dividend.astype(float)
+        divisor = divisor.astype(float)
+        out = np.zeros_like(divisor)
+        return np.divide(dividend, divisor, out=out, where=divisor != 0)
+
     def pool_std(self, variance, sample_size_sums):
         variance_sums = self.pairwise_sum(variance)
-        # FIXME check for division by zero
-        return np.sqrt(variance_sums / (sample_size_sums - 2))
+        return np.sqrt(self.safe_zero_divide(variance_sums, sample_size_sums - 2))
 
-    def calc_cohens_d(self, deltas, pooled_std):
-        # FIXME check for division by zero
-        return deltas / pooled_std
+    def calculate_cohens_d(self, deltas, pooled_std):
+        return self.safe_zero_divide(deltas, pooled_std)
 
     def correct_bias(self, effect_size, n_sums):
-        denominator = (4 * n_sums) - 9
-        # FIXME check for division by zero
-        correction_factor = 1 - (3 / denominator)
+        divisor = (4 * n_sums) - 9
+        correction_factor = 1 - self.safe_zero_divide(np.array([3.0]), divisor)
         return correction_factor * effect_size
 
-    def hedges_g(self, delta, group, sample_size, sample_size_sums):
+    def calculate_hedges_g(self, delta, group, sample_size, sample_size_sums):
         variance = group['window_variance'].values
         scaled_variance = self.scale_variance(sample_size, variance)
         pooled_std = self.pool_std(scaled_variance, sample_size_sums)
-        cohens_d = self.calc_cohens_d(delta, pooled_std)
+        cohens_d = self.calculate_cohens_d(delta, pooled_std)
         return self.correct_bias(cohens_d, sample_size_sums)
 
     def calculate_effect_sizes(self, deltas, groupby_window, stats):
         sample_size = stats['alignment_length']
         sample_size_sums = self.pairwise_sum(sample_size)
-        return [self.hedges_g(delta, group[1], sample_size, sample_size_sums)
+        return [self.calculate_hedges_g(delta, group[1], sample_size, sample_size_sums)
                 for delta, group in zip(deltas, groupby_window)]
 
     # filter windows with the n (user specified) largest differences between group means
@@ -200,15 +204,7 @@ class SlidingWindow:
             .reset_index(drop=True)
         )
 
-    def make_window_data(self):
-        groupby_subset = self.frequencies.groupby('subset')
-        self.window_data = groupby_subset.mean().T.stack().reset_index()
-        variance = groupby_subset.var().T.stack().reset_index(drop=True)
-        self.window_data['variance'] = variance
-        std = np.sqrt(variance)
-        self.window_data['std'] = std
-        self.window_data.columns = [
-            'window', 'subset', 'window_mean', 'window_variance', 'window_std']
+    def make_effect_sizes(self):
         groupby_window = self.window_data.groupby('window')
         deltas = self.calculate_deltas(groupby_window)
         deltas_temp = deltas.copy()
@@ -219,7 +215,19 @@ class SlidingWindow:
         effect_sizes = pd.DataFrame(np.concatenate(
             effect_sizes), columns=self.make_column_names('_hedges_g'))
         self.concat_dataframes(deltas, effect_sizes)
-        self.make_filtered_data(deltas_temp)
+        return deltas_temp
+
+    def make_window_data(self):
+        groupby_subset = self.frequencies.groupby('subset')
+        self.window_data = groupby_subset.mean().T.stack().reset_index()
+        variance = groupby_subset.var().T.stack().reset_index(drop=True)
+        self.window_data['variance'] = variance
+        std = np.sqrt(variance)
+        self.window_data['std'] = std
+        self.window_data.columns = [
+            'window', 'subset', 'window_mean', 'window_variance', 'window_std']
+        deltas = self.make_effect_sizes()
+        self.make_filtered_data(deltas)
 
     def save_csv(self, df, filename):
         df.to_csv(f'{self.processed_data_path}{filename}.csv', index=False)
