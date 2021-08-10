@@ -166,6 +166,6 @@ class WindowPlot:
 
     def make_plots(self):
         self.sliding_plot(plot_scroll_size=50)
-        # self.dot_plot(self.sw.window_data_filtered, self.filtered_range)
-        # self.kde_plot()
-        # self.ecdf_plot()
+        self.dot_plot(self.sw.window_data_filtered, self.filtered_range)
+        self.kde_plot()
+        self.ecdf_plot()
