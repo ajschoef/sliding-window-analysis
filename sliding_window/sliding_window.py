@@ -18,6 +18,7 @@ class SlidingWindow:
         self.window_data_filtered = None
         self.summary_stats = []
         # helper variables
+        self.groupby_window = None
         self.processed_data_path = 'results/processed_data/'
         self.fasta_extensions = (
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
@@ -45,6 +46,7 @@ class SlidingWindow:
     def to_boolean(self, sequence_arrays):
         return np.where(np.isin(sequence_arrays, self.target), 1, 0)
 
+    # returns an array of target counts for each window in a sequence
     def window_counts(self, sequence):
         # convolution weights; vector of ones with length of window size
         weights = np.ones(self.window_size, dtype=int)
@@ -61,7 +63,7 @@ class SlidingWindow:
                             columns=['alignment_length', 'sequence_count', 'target_count',
                                      'target_proportion'])
 
-    # returns a 2d array of the target counts in each window (columns) for each sequence (rows)
+    # returns a 2d array of the target counts in each window (column) for each sequence (row)
     def sequence_window_counts(self, is_target):
         return np.array([self.window_counts(seq) for seq in is_target])
 
@@ -145,8 +147,8 @@ class SlidingWindow:
     def delta_matrix(self, group):
         return group['window_mean'].values - group['window_mean'].values[:, None]
 
-    def calculate_deltas(self, groupby_window):
-        return [self.delta_matrix(group) for _, group in groupby_window]
+    def calculate_deltas(self):
+        return [self.delta_matrix(group) for _, group in self.groupby_window]
 
     def concat_dataframes(self, deltas, effect_sizes):
         self.window_data = pd.concat(
@@ -190,19 +192,18 @@ class SlidingWindow:
         return self.correct_bias(cohens_d, sample_size_sums)
 
     # calculate Hedge's g effect size for each pairwise combination of subset frequencies
-    def calculate_effect_sizes(self, deltas, groupby_window, stats):
-        sample_size = stats['alignment_length']
+    def calculate_effect_sizes(self, deltas):
+        sample_size = self.summary_stats['alignment_length']
         sample_size_sums = self.pairwise_sum(sample_size)
         return [self.calculate_hedges_g(delta, group[1], sample_size, sample_size_sums)
-                for delta, group in zip(deltas, groupby_window)]
+                for delta, group in zip(deltas, self.groupby_window)]
 
     # calculate and append deltas and effect sizes to window dataframe
     def make_effect_sizes(self):
-        groupby_window = self.window_data.groupby('window')
-        deltas = self.calculate_deltas(groupby_window)
+        deltas = self.calculate_deltas()
         deltas_temp = deltas.copy()
         effect_sizes = self.calculate_effect_sizes(
-            deltas, groupby_window, self.summary_stats)
+            deltas)
         deltas = pd.DataFrame(np.concatenate(
             deltas), columns=self.make_column_names('_delta'))
         effect_sizes = pd.DataFrame(np.concatenate(
@@ -240,6 +241,7 @@ class SlidingWindow:
         self.window_data['std'] = std
         self.window_data.columns = [
             'window', 'subset', 'window_mean', 'window_variance', 'window_std']
+        self.groupby_window = self.window_data.groupby('window')
         deltas = self.make_effect_sizes()
         self.make_filtered_data(deltas)
 
