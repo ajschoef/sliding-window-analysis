@@ -28,9 +28,11 @@ class SlidingWindow:
     def make_subset_name(self, file):
         return file.name.split('.')[0]
 
+    # returns a boolean indicating if a file's extension matches a FASTA format
     def is_fasta(self, file):
         return file.name.lower().endswith(self.fasta_extensions)
 
+    # applies a function to each file in the data directory if it is a FASTA file
     def apply_if_fasta(self, f):
         with self.path_to_data as entries:
             return [f(file) for file in entries.iterdir() if self.is_fasta(file)]
@@ -59,12 +61,15 @@ class SlidingWindow:
                             columns=['alignment_length', 'sequence_count', 'target_count',
                                      'target_proportion'])
 
+    # returns a 2d array of the target counts in each window (columns) for each sequence (rows)
     def sequence_window_counts(self, is_target):
-        return np.asarray([self.window_counts(seq) for seq in is_target])
+        return np.array([self.window_counts(seq) for seq in is_target])
 
+    # returns sequences at each window stride step
     def filter_stride(self, sequences):
         return sequences[:, 0::self.stride]
 
+    # returns a dataframe of sequence headers appended to window frequencies dataframe
     def add_header(self, header, window_frequencies):
         header = pd.Series(header, name='header')
         columns = range(1, window_frequencies.shape[1] + 1)
@@ -72,6 +77,7 @@ class SlidingWindow:
             window_frequencies, columns=columns)
         return pd.concat([header, window_frequencies], axis=1)
 
+    # returns a data frame of window frequencies for each sequence in a subset
     def window_frequencies(self, sequences):
         header, sequences = zip(*sequences)
         sequences_arrays = self.seq_to_np_array(sequences)
@@ -97,6 +103,7 @@ class SlidingWindow:
         sequences = [sequence.split('\n') for sequence in sequences]
         return [self.separate_header(sequence) for sequence in sequences]
 
+    # process each FASTA file
     def subset_sequences(self):
         fastas = self.apply_if_fasta(self.read_fasta)
         return [self.process_fasta(fasta) for fasta in fastas]
@@ -114,6 +121,7 @@ class SlidingWindow:
             .rename(columns={'level_0': 'subset'})
         )
 
+    # generate aggregate summary statistics for each subset
     def make_summary_stats(self):
         self.summary_stats = pd.concat(self.summary_stats)
         self.summary_stats.index = self.subset_names
@@ -144,15 +152,7 @@ class SlidingWindow:
         self.window_data = pd.concat(
             [self.window_data, deltas, effect_sizes], axis=1)
 
-    # returns the lower half of a symmetric matrix (upper half is redundent) as a flattened array
-    def lower_tri_values(self, diff_matrix):
-        return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
-
-    # returns the largest difference between the group means for a window
-    def pairwise_abs_max(self, diff_matrix):
-        diff_array = self.lower_tri_values(diff_matrix)
-        return np.max(abs(diff_array))
-
+    # scale variance of each subset relative to their sample size
     def scale_variance(self, sample_size, variance):
         return (sample_size - 1) * variance
 
@@ -167,6 +167,7 @@ class SlidingWindow:
         out = np.zeros_like(divisor)
         return np.divide(dividend, divisor, out=out, where=divisor != 0)
 
+    # calculates pooled standard deviation for each pairwise combination of subset frequency variances
     def pool_std(self, variance, sample_size_sums):
         variance_sums = self.pairwise_sum(variance)
         return np.sqrt(self.safe_zero_divide(variance_sums, sample_size_sums - 2))
@@ -174,11 +175,13 @@ class SlidingWindow:
     def calculate_cohens_d(self, deltas, pooled_std):
         return self.safe_zero_divide(deltas, pooled_std)
 
+    # returns the bias corrected Cohen's d effect size
     def correct_bias(self, effect_size, n_sums):
         divisor = (4 * n_sums) - 9
         correction_factor = 1 - self.safe_zero_divide(np.array([3.0]), divisor)
         return correction_factor * effect_size
 
+    # calculates Hedge's g effect size for groups with unequal sample sizes
     def calculate_hedges_g(self, delta, group, sample_size, sample_size_sums):
         variance = group['window_variance'].values
         scaled_variance = self.scale_variance(sample_size, variance)
@@ -186,24 +189,14 @@ class SlidingWindow:
         cohens_d = self.calculate_cohens_d(delta, pooled_std)
         return self.correct_bias(cohens_d, sample_size_sums)
 
+    # calculate Hedge's g effect size for each pairwise combination of subset frequencies
     def calculate_effect_sizes(self, deltas, groupby_window, stats):
         sample_size = stats['alignment_length']
         sample_size_sums = self.pairwise_sum(sample_size)
         return [self.calculate_hedges_g(delta, group[1], sample_size, sample_size_sums)
                 for delta, group in zip(deltas, groupby_window)]
 
-    # filter windows with the n (user specified) largest differences between group means
-    def make_filtered_data(self, deltas):
-        max_deltas = [self.pairwise_abs_max(delta) for delta in deltas]
-        indices = np.argpartition(
-            max_deltas, -self.n_largest)[-self.n_largest:] + 1
-        mask = self.window_data['window'].isin(indices)
-        self.window_data_filtered = (
-            self.window_data[mask]
-            .copy()
-            .reset_index(drop=True)
-        )
-
+    # calculate and append deltas and effect sizes to window dataframe
     def make_effect_sizes(self):
         groupby_window = self.window_data.groupby('window')
         deltas = self.calculate_deltas(groupby_window)
@@ -216,6 +209,27 @@ class SlidingWindow:
             effect_sizes), columns=self.make_column_names('_hedges_g'))
         self.concat_dataframes(deltas, effect_sizes)
         return deltas_temp
+
+    # returns the lower half of a symmetric matrix (upper half is redundent) as a flattened array
+    def lower_tri_values(self, diff_matrix):
+        return diff_matrix[np.triu_indices(diff_matrix.shape[0], k=1)]
+
+    # returns the largest difference between the group means for a window
+    def pairwise_abs_max(self, diff_matrix):
+        diff_array = self.lower_tri_values(diff_matrix)
+        return np.max(abs(diff_array))
+
+    # filter windows with the n (user specified) largest differences between group means
+    def make_filtered_data(self, deltas):
+        max_deltas = [self.pairwise_abs_max(delta) for delta in deltas]
+        indices = np.argpartition(
+            max_deltas, -self.n_largest)[-self.n_largest:] + 1
+        mask = self.window_data['window'].isin(indices)
+        self.window_data_filtered = (
+            self.window_data[mask]
+            .copy()
+            .reset_index(drop=True)
+        )
 
     def make_window_data(self):
         groupby_subset = self.frequencies.groupby('subset')
