@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 from matplotlib.widgets import Slider
-from numpy import interp
 
 
 class WindowPlot:
@@ -126,14 +125,14 @@ class WindowPlot:
             plt.show()
 
     # convert a scalar from one range to another
-    def interp_range(self, value, old_xticks):
-        return int(interp(value, [old_xticks[1], old_xticks[-2]], [1, self.alighment_length]))
+    def interpolate_range(self, value, old_xticks):
+        return int(np.interp(value, [old_xticks[1], old_xticks[-2]], [1, self.alighment_length]))
 
     # map window stride range to alighnment length range for x ticks
     def reset_xticks(self, axes):
         old_xticks = axes[0].get_xticks()
         axes[0].set_xticks(old_xticks[1:-1])
-        new_xticks = [self.interp_range(value, old_xticks)
+        new_xticks = [self.interpolate_range(value, old_xticks)
                       for value in old_xticks]
         axes[0].set_xticklabels(new_xticks[1:-1])
 
