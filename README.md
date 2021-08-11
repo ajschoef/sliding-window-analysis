@@ -12,9 +12,9 @@ Open a command line interface and change the working directory to the sliding-wi
 
     cd example/path/to/directory/sliding-window-analysis
 
-Build the docker image and specify the path to the directory containing your [FASTA files](https://en.wikipedia.org/wiki/FASTA_format)
+Build the docker image and specify the path to the directory containing your [FASTA files](https://en.wikipedia.org/wiki/FASTA_format) (note: the FASTA file directory must be in the sliding-window-analysis directory)
 
-    docker-compose build --build-arg path_to_data=example/path/
+    docker-compose build --build-arg path_to_data=sliding-window-analysis/example/path/
 
 For documentation on the program's arguments, run
 
@@ -30,8 +30,8 @@ The path_to_data argument should be the same as the one provided in the docker-c
 
 With a single `target`, G, and no optional arguments
 
-    docker-compose run app example/path/ G 20 50
+    docker-compose run app sliding-window-analysis/example/path/ G 20 50
 
 With multiple targets (T, C, A) and the optional `--stride` and `--colors` arguments
 
-    docker-compose run app example/path/ TCA 10 20 --stride 10 --colors blue green yellow
+    docker-compose run app sliding-window-analysis/example/path/ TCA 10 20 --stride 10 --colors blue green yellow

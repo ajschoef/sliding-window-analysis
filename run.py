@@ -44,6 +44,8 @@ def main():
         parser.error(f"'n_largest' {pos_int_text}")
     if args['stride'] and args['stride'] < 1:
         parser.error(f"'stride' {pos_int_text}")
+    if not args['stride']:
+        args['stride'] = 1
 
     # makes a directory if it doesn't already exist
     def make_dir(dir_name):

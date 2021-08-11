@@ -5,7 +5,7 @@ from pathlib import Path
 
 class SlidingWindow:
 
-    def __init__(self, path_to_data, target, window_size, n_largest, stride=1):
+    def __init__(self, path_to_data, target, window_size, n_largest, stride):
         # parameters
         self.path_to_data = Path(path_to_data)
         self.target = np.array(list(target))

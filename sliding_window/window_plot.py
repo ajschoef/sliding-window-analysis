@@ -69,15 +69,18 @@ class WindowPlot:
         stride_text = f"\tWindow stride: {self.sw.stride}".expandtabs()
         return f"Target{is_plural}: {target_text}{window_size_text}{stride_text}"
 
-    def format_x_ticks(self, axes, window_range):
+    def format_x_ticks(self, axes, window_range, filtered):
         axes.tick_params(
             axis='x',
             which='major',
             labelsize=6,
             labelrotation=-90)
         axes.set_xticks(window_range)
-        x_tick_labels = np.arange(
-            start=1, stop=self.alighment_length, step=self.sw.stride)[:window_range.size]
+        if filtered:
+            x_tick_labels = self.sw.window_data_filtered['window'].unique()
+        else:
+            x_tick_labels = self.sw.window_data['window'].unique(
+            ) * self.sw.stride
         axes.set_xticklabels(x_tick_labels)
 
     def scatter_plot(self, df, axes, alpha):
@@ -96,7 +99,7 @@ class WindowPlot:
         plt.tight_layout()
         return axes
 
-    def dot_plot(self, df, window_range, axes=None, save_plot=True, show=True):
+    def dot_plot(self, df, window_range, filtered, axes=None, save_plot=True, show=True):
         plt.rcParams['figure.figsize'] = [15, 6]
         label = "Window"
         groupby_window = self.sw.groupby_window
@@ -111,7 +114,7 @@ class WindowPlot:
         plt.ylim((min_values.min(), y_max))
         plt.vlines(x=window_range, ymin=-0.1,
                    ymax=max_values, color='grey', zorder=0, lw=0.6)
-        self.format_x_ticks(axes, window_range)
+        self.format_x_ticks(axes, window_range, filtered)
         plt.title(self.dot_plot_title)
         x_label = f'{label} position'
         plt.xlabel(x_label, labelpad=10)
@@ -136,7 +139,7 @@ class WindowPlot:
 
     def sliding_plot(self, plot_scroll_size):
         fig, axes = plt.subplots(2)
-        self.dot_plot(self.sw.window_data, self.unfiltered_range,
+        self.dot_plot(self.sw.window_data, self.unfiltered_range, filtered=False,
                       axes=axes[1], save_plot=False, show=False)
         axes[0] = self.scatter_plot(self.sw.window_data, axes[0], 0.6)
         axes[1].set(title=None)
@@ -166,6 +169,7 @@ class WindowPlot:
 
     def make_plots(self):
         self.sliding_plot(plot_scroll_size=50)
-        self.dot_plot(self.sw.window_data_filtered, self.filtered_range)
+        self.dot_plot(self.sw.window_data_filtered,
+                      self.filtered_range, filtered=True)
         self.kde_plot()
         self.ecdf_plot()
