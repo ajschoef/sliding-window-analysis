@@ -80,6 +80,22 @@ class WindowPlot:
             start=1, stop=self.alighment_length, step=self.sw.stride)[:window_range.size]
         axes.set_xticklabels(x_tick_labels)
 
+    def scatter_plot(self, df, axes, alpha):
+        axes = sns.scatterplot(
+            data=df,
+            x='x_ticks',
+            y='window_mean',
+            hue='subset',
+            palette=self.colors,
+            linewidth=0,
+            ax=axes,
+            alpha=alpha)
+        axes.legend(title='Subset')
+        axes.set(xlabel=None)
+        axes.set(ylabel=None)
+        plt.tight_layout()
+        return axes
+
     def dot_plot(self, df, window_range, axes=None, save_plot=True, show=True):
         plt.rcParams['figure.figsize'] = [15, 6]
         label = "Window"
@@ -87,7 +103,7 @@ class WindowPlot:
         if not axes:
             label = f"Filtered window"
             groupby_window = df.groupby('window')
-        axes = self.scatter_plot(axes, 1)
+        axes = self.scatter_plot(df, axes, 1)
         axes.legend(title='Subset')
         min_values = groupby_window.min()['window_mean']
         max_values = groupby_window.max()['window_mean']
@@ -106,22 +122,7 @@ class WindowPlot:
         if show:
             plt.show()
 
-    def scatter_plot(self, axes, alpha):
-        sns.scatterplot(
-            data=self.sw.window_data,
-            x='x_ticks',
-            y='window_mean',
-            hue='subset',
-            palette=self.colors,
-            linewidth=0,
-            ax=axes,
-            alpha=alpha)
-        axes.legend(title='Subset')
-        axes.set(xlabel=None)
-        axes.set(ylabel=None)
-        plt.tight_layout()
-        return axes
-
+    # convert a scalar from one range to another
     def interp_range(self, value, old_xticks):
         return int(interp(value, [old_xticks[1], old_xticks[-2]], [1, self.alighment_length]))
 
@@ -137,7 +138,7 @@ class WindowPlot:
         fig, axes = plt.subplots(2)
         self.dot_plot(self.sw.window_data, self.unfiltered_range,
                       axes=axes[1], save_plot=False, show=False)
-        self.scatter_plot(axes[0], 0.6)
+        axes[0] = self.scatter_plot(self.sw.window_data, axes[0], 0.6)
         axes[1].set(title=None)
         axes[1].set(ylabel=None)
         axes[0].set(title=self.dot_plot_title)
@@ -160,7 +161,6 @@ class WindowPlot:
             fig.canvas.draw_idle()
 
         update(slider_pos.val)
-        # update function called using on_changed() function
         slider_pos.on_changed(update)
         plt.show()
 
