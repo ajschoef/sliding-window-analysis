@@ -24,6 +24,7 @@ class SlidingWindow:
             '.fasta', '.fa', '.fna', '.ffn', '.faa', '.frn')
         # generate subset labels from filenames
         self.subset_names = self.apply_if_fasta(self.make_subset_name)
+        self.subset_names.sort()
         self.n_subset = len(self.subset_names)
 
     def make_subset_name(self, file):
@@ -74,6 +75,8 @@ class SlidingWindow:
     # returns a dataframe of sequence headers appended to window frequencies dataframe
     def add_header(self, header, window_frequencies):
         header = pd.Series(header, name='header')
+        # name_range = range(1, window_frequencies.shape[1] + 1)
+        # [f'window_{i}' for i in name_range]
         columns = range(1, window_frequencies.shape[1] + 1)
         window_frequencies = pd.DataFrame(
             window_frequencies, columns=columns)
@@ -139,9 +142,7 @@ class SlidingWindow:
         self.summary_stats.reset_index(inplace=True)
 
     def make_column_names(self, postfix):
-        delta_names = self.subset_names.copy()
-        delta_names.sort()
-        return [subset.lower() + postfix for subset in delta_names]
+        return [subset.lower() + postfix for subset in self.subset_names]
 
     # returns a symmetric matrix of the differences between group means for a window
     def delta_matrix(self, group):
@@ -232,6 +233,17 @@ class SlidingWindow:
             .reset_index(drop=True)
         )
 
+    # convert a scalar from one range to another
+    def interpolate_range(self, value, old_min, old_max, new_min, new_max):
+        return int(np.interp(value, [old_min, old_max], [new_min, new_max]))
+
+    def make_window_start(self):
+        alighment_length = self.summary_stats['alignment_length'][0]
+        old_min = self.window_data["window"].values[0]
+        old_max = self.window_data["window"].values[-1]
+        return [self.interpolate_range(value, old_min, old_max, 1, alighment_length)
+                for value in self.window_data["window"]]
+
     def make_window_data(self):
         groupby_subset = self.frequencies.groupby('subset')
         self.window_data = groupby_subset.mean().T.stack().reset_index()
@@ -241,6 +253,7 @@ class SlidingWindow:
         self.window_data['std'] = std
         self.window_data.columns = [
             'window', 'subset', 'window_mean', 'window_variance', 'window_std']
+        self.window_data.insert(1, "window_start", self.make_window_start())
         self.groupby_window = self.window_data.groupby('window')
         deltas = self.make_effect_sizes()
         self.make_filtered_data(deltas)
