@@ -1,7 +1,7 @@
-from sliding_window.sliding_window import SlidingWindow
-from sliding_window.window_plot import WindowPlot
 import argparse
 import os
+from sliding_window.window_plot import WindowPlot
+from sliding_window.sliding_window import SlidingWindow
 
 
 def main():
