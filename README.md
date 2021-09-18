@@ -1,37 +1,57 @@
 # sliding-window-analysis
 
-![Example plot](/example_plot.png)
+![Example plot](sliding_window_plot.png)
 
 ### Setup and run instuctions
 
-Download or clone this repository.
+1) Download or clone this repository.
 
-Download and install [Docker](https://www.docker.com/products/docker-desktop).
+2) Download, install, then open [Docker desktop](https://www.docker.com/products/docker-desktop).
 
-Open a command line interface and change the working directory to the sliding-window-analysis directory. For example, in Linux/Unix
+3) Move or copy the directory containing the FASTA files you wish to analyze into the `sliding-window-analysis` directory
 
-    cd example/path/to/directory/sliding-window-analysis
+4) Open a command line interface and change your working directory to the sliding-window-analysis directory, for example
 
-Build the docker image and specify the path to the directory containing your [FASTA files](https://en.wikipedia.org/wiki/FASTA_format) (note: the FASTA file directory must be in the sliding-window-analysis directory)
+        cd example/path/to/directory/sliding-window-analysis
 
-    docker-compose build --build-arg path_to_data=sliding-window-analysis/example/path/
+<!-- Build the docker image and specify the path to the directory containing your [FASTA files](https://en.wikipedia.org/wiki/FASTA_format) (note: the FASTA file directory must be in the sliding-window-analysis directory)
 
-For documentation on the program's arguments, run
+    docker-compose build --build-arg path_to_data=sliding-window-analysis/example/path/ -->
 
-    docker-compose run app -h
+5) To excute the program, use `docker-compose run` at the command line
 
-To excute the program, pass the arguments listed below.
+        docker-compose run sliding_window path_to_data target window_size n_largest --stride --colors
 
-    docker-compose run app path_to_data target window_size n_largest --stride --fit --colors
+The program parameters are `path_to_data`, `target`, `window_size`, `n_largest`, and optionally, `--stride` and `--colors`.
 
-The path_to_data argument should be the same as the one provided in the docker-compose build command. After running this command, the program's output should now be in the generated "results" subdirectory.
+For documentation on the program's parameters, run
+
+    docker-compose run sliding_window -h
+
+<!-- The path_to_data argument should be the same as the one provided in the docker-compose build command.  -->
 
 ### Examples
 
-With a single `target`, G, and no optional arguments
+#####With a single `target` "G" and no optional arguments
 
-    docker-compose run app sliding-window-analysis/example/path/ G 20 50
+    docker-compose run sliding_window data/raw/ G 20 50
 
-With multiple targets (T, C, A) and the optional `--stride` and `--colors` arguments
+After running this command, the program's output should now be in the generated "results" subdirectory
 
-    docker-compose run app sliding-window-analysis/example/path/ TCA 10 20 --stride 10 --colors blue green yellow
+#####With multiple targets ("T", "C", and "A") and the optional `--stride` and `--colors` arguments
+
+    docker-compose run sliding_window data/raw/ TCA 10 20 --stride 10 --colors blue green yellow
+
+###Installing and running the program without Docker
+
+If you wish to run the program without docker, you must have python 3.9 or later installed (earlier versions may work, but have not been tested), then follow steps 1-4 as above. Next, install the program's requirements with
+
+    pip install -r requirements.txt
+
+Then run the program with
+
+    python3 run.py path_to_data target window_size n_largest --stride --colors
+
+For example,
+
+    python3 run.py data/raw/extremofiles N 20 50 --stride 5
