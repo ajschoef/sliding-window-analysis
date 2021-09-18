@@ -66,12 +66,12 @@ def main():
     # run data processing pipeline
     print("Processing data...")
     sw.run_pipeline()
-    print(f"Processed data is in {sw.processed_data_path}")
+    print(f"Processed data have been saved to: {sw.processed_data_path}")
     # generate all plots
     wp = WindowPlot(sw, colors)
     print("Rendering plots...")
     wp.make_plots()
-    print(f"Plots are in {wp.plots_path}")
+    print(f"Plots have been saved to: {wp.plots_path}")
 
 
 if __name__ == "__main__":

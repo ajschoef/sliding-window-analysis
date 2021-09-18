@@ -18,9 +18,12 @@ class WindowPlot:
         self.groupby_subset_filtered = self.sw.window_data_filtered.groupby(
             'subset')
         self.parameter_text = self.make_parameter_text()
+        self.n_windows = self.num_windows(self.sw.window_data)
+        self.n_windows_filtered = self.num_windows(
+            self.sw.window_data_filtered)
         # append x-ticks for dot plots
-        self.add_x_ticks(self.sw.window_data)
-        self.add_x_ticks(self.sw.window_data_filtered)
+        self.add_x_ticks(self.sw.window_data, self.n_windows)
+        self.add_x_ticks(self.sw.window_data_filtered, self.n_windows_filtered)
 
     def make_parameter_text(self):
         target_text = ', '.join(self.sw.target)
@@ -32,12 +35,9 @@ class WindowPlot:
     def num_windows(self, df):
         return df.shape[0] / self.sw.n_subset
 
-    def calc_window_range(self, df):
-        return np.arange(1, self.num_windows(df)+1)
-
-    def add_x_ticks(self, df):
-        df['x_ticks'] = np.repeat(self.calc_window_range(
-            df), self.sw.n_subset)
+    def add_x_ticks(self, df, n_windows):
+        window_range = np.arange(1, n_windows+1)
+        df['x_ticks'] = np.repeat(window_range, self.sw.n_subset)
 
     def ecdf_plot(self):
         p = figure(x_axis_label='Window frequency mean',
@@ -78,9 +78,10 @@ class WindowPlot:
         show(row(p, q))
 
     def make_color_palette(self):
-        colors = Category20[20]
+        if not self.colors:
+            self.colors = Category20[20]
         color_map = {name: color for name,
-                     color in zip(self.sw.subset_names, colors)}
+                     color in zip(self.sw.subset_names, self.colors)}
         return self.sw.window_data['subset'].map(color_map)
 
     def dot_plot(self, groupby_subset, tools, x_range):
@@ -147,7 +148,7 @@ class WindowPlot:
             plot_width=1000,
             y_range=p.y_range,
             y_axis_type=None,
-            tools="",
+            tools="save",
             toolbar_location=None,
             background_fill_color="#efefef"
         )
@@ -167,13 +168,13 @@ class WindowPlot:
     def sliding_window_plot(self, df):
         output_file("results/plots/dot_plot.html",
                     title="Sliding window plot")
-        initial_panel_size = int(
-            self.sw.summary_stats['alignment_length'][0] * 0.1)
+        initial_panel_size = int(self.n_windows * 0.1)
         p = self.dot_plot(self.groupby_subset, [
                           "xpan", "save"], (0, initial_panel_size))
         select = self.sliding_panel(p, df, self.groupby_subset)
-        div = Div(text=self.parameter_text, width=200, height=100)
-        grid = gridplot([[p, div], [select, None]])
+        div = Div(text=self.parameter_text, width=200,
+                  height=100)
+        grid = gridplot([[p, div], [select, None]], merge_tools=True)
         show(grid)
 
     def make_plots(self):

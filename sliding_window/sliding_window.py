@@ -221,11 +221,9 @@ class SlidingWindow:
         diff_array = self.lower_tri_values(diff_matrix)
         return np.max(abs(diff_array))
 
-    # filter windows with the n (user specified) largest differences between group means
-    def make_filtered_data(self, deltas):
-        max_deltas = [self.pairwise_abs_max(delta) for delta in deltas]
+    def filter_dataframe(self, array):
         indices = np.argpartition(
-            max_deltas, -self.n_largest)[-self.n_largest:] + 1
+            array, -self.n_largest)[-self.n_largest:] + 1
         mask = self.window_data['window'].isin(indices)
         self.window_data_filtered = (
             self.window_data[mask]
@@ -255,17 +253,25 @@ class SlidingWindow:
             'window', 'subset', 'window_mean', 'window_variance', 'window_std']
         self.window_data.insert(1, "window_start", self.make_window_start())
         self.groupby_window = self.window_data.groupby('window')
-        deltas = self.make_effect_sizes()
-        self.make_filtered_data(deltas)
+        if self.n_subset > 1:
+            deltas = self.make_effect_sizes()
+            # filter windows the n largest differences between group means
+            max_deltas = [self.pairwise_abs_max(delta) for delta in deltas]
+            self.filter_dataframe(max_deltas)
+        else:
+            # filter windows the n largest window means
+            self.filter_dataframe(self.window_data['window_mean'])
 
     def save_csv(self, df, filename):
         df.to_csv(f'{self.processed_data_path}{filename}.csv', index=False)
 
     def save_data(self):
-        self.save_csv(self.frequencies, 'window_frequencies')
-        self.save_csv(self.window_data, 'window_data')
-        self.save_csv(self.window_data_filtered, 'window_data_filtered')
-        self.save_csv(self.summary_stats, 'summary_stats')
+        dataframes = [self.frequencies, self.window_data,
+                      self.window_data_filtered, self.summary_stats]
+        names = ['window_frequencies', 'window_data',
+                 'window_data_filtered', 'summary_stats']
+        for frame, name in zip(dataframes, names):
+            self.save_csv(frame, name)
 
     def run_pipeline(self):
         self.make_frequencies()
