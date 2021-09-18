@@ -32,17 +32,17 @@ For documentation on the program's parameters, run
 
 ### Examples
 
-#####With a single `target` "G" and no optional arguments
+##### With a single `target` "G" and no optional arguments
 
     docker-compose run sliding_window data/raw/ G 20 50
 
 After running this command, the program's output should now be in the generated "results" subdirectory
 
-#####With multiple targets ("T", "C", and "A") and the optional `--stride` and `--colors` arguments
+##### With multiple targets ("T", "C", and "A") and the optional `--stride` and `--colors` arguments
 
     docker-compose run sliding_window data/raw/ TCA 10 20 --stride 10 --colors blue green yellow
 
-###Installing and running the program without Docker
+### Installing and running the program without Docker
 
 If you wish to run the program without docker, you must have python 3.9 or later installed (earlier versions may work, but have not been tested), then follow steps 1-4 as above. Next, install the program's requirements with
 
